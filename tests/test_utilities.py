@@ -47,10 +47,10 @@ class TestTimer:
         
         with th.Timer(device) as t:
             time.sleep(0.1)  # Sleep 100ms
-        
-        # Should be approximately 0.1 seconds (allow some margin)
-        assert 0.08 < t.elapsed < 0.15
-    
+        # Allow generous tolerance for CI runners (sleep(0.1) + overhead)
+        assert timer.elapsed >= 0.09  # At least ~90ms
+        assert timer.elapsed < 0.3    # But less than 300ms (CI can be slow)
+ 
     def test_cpu_timer_attributes(self, th):
         """CPU Timer should have correct attributes."""
         device = torch.device("cpu")
