@@ -1,1 +1,741 @@
-Hello World!
+# Torch Hammer  
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.md)
+[![Tests](https://img.shields.io/badge/tests-97%20passed-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-37%25-yellow.svg)](tests/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-1.10+-ee4c2c.svg)](https://pytorch.org/)
+
+```
+            _____              _       _   _                                      
+           |_   _|__  _ __ ___| |__   | | | | __ _ _ __ ___  _ __ ___   ___ _ __ 
+             | |/ _ \| '__/ __| '_ \  | |_| |/ _` | '_ ` _ \| '_ ` _ \ / _ \ '__|
+             | | (_) | | | (__| | | | |  _  | (_| | | | | | | | | | | |  __/ |   
+             |_|\___/|_|  \___|_| |_| |_| |_|\__,_|_| |_| |_|_| |_| |_|\___|_|   
+                                                                        
+                              Forged with PyTorch
+                        GPU/CPU/APU Micro-Benchmark Suite
+```
+
+_A portable, PyTorch micro-benchmark suite for stress testing CPUs, GPUs, and APUs_
+
+> **© Copyright 2025-2026 Hewlett Packard Enterprise Development LP**  
+> Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for details.
+
+#### Background
+Torch Hammer is a benchmarking utility designed to stress test and evaluate the performance of CPUs, GPUs, and APUs using PyTorch. The inspiration for Torch Hammer arose from the increasing heterogeneity of workloads, hardware, and runtime environments across the HPC & AI industry. The rich HPC & AI ecosystem inspired Torch Hammer, a tool which aims to:
+- Offer a variety of highly-parametrized tests that can push hardware power/thermal limits
+- Characterize hardware performance and identify slow components
+- Be portable so that it can be run across different platforms
+- Provide an easy to maintain mechanism to add new tests
+
+When building Torch Hammer, I was inspired by my undergraduate work in quantum chemistry, differential equations, and my more recent interest in AI. Some of the tests you will find in Torch Hammer are small kernels of the types of problems I would work out by hand for my assignments as a student at the University of Minnesota. Others are reflective of patterns commonly used in AI/ML workloads.
+
+---
+
+## Table of Contents
+1. [Key Features](#key-features)  
+2. [Installation](#installation)  
+3. [Quick Start](#quick-start)  
+4. [Command-line Reference](#command-line-reference)  
+5. [Verbose-Mode](#Verbose)  
+6. [Telemetry Back-ends](#telemetry-back-ends)  
+7. [Examples](#examples)  
+8. [Contributing](#contributing)  
+9. [Project Governance](#project-governance)
+10. [License](#license)  
+
+---
+
+## Key Features
+- **Cross-platform**: CUDA, ROCm, Metal (MPS), CPU – automatically selected.
+- **Nine micro benchmarks**
+  1. Batched GEMM (matrix multiply)
+  2. 2-D Convolution
+  3. 3-D FFT
+  4. Einsum (attention-style tensor contraction)
+  5. Random memory traffic
+  6. Laplacian heat-equation solver
+  7. 1-D time-dependent Schrödinger equation
+  8. Atomic contention (L2 cache stress via scatter_add)
+  9. Sparse matrix multiplication (SpMM)
+- **Precision choices**: `float16`, `bfloat16`, `float32`, `float64`, `complex64`, `complex128`.
+- **Tensor Core support**: Optional TF32 mode on newer platforms.
+- **Live telemetry**
+  - NVIDIA: power, temperature, utilization, clock, memory controller activity, memory utilization, GPU temperature, SM utilization
+  - AMD ROCm: power, temperature, utilization, clock
+  - CPU: basic vendor & model info.
+- **Verbose logging**: every iteration, every telemetry field, one comma-separated line.
+
+---
+## Installation
+
+### Prerequisites
+
+* Python ≥ 3.8  
+* PyTorch ≥ 1.10 (see [PyTorch installation guide](https://pytorch.org/get-started/locally/))
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/HPE/torch-hammer.git
+cd torch-hammer
+
+# Create and activate virtual environment (recommended)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Make executable
+chmod +x torch-hammer.py
+```
+
+> **Note:** After the steps above, complete the [Platform-Specific Setup](#platform-specific-setup) below for your hardware (NVIDIA, AMD, Apple Silicon, or CPU-only) before running benchmarks.
+
+### Platform-Specific Setup
+
+#### NVIDIA Setup
+```bash
+# Install PyTorch with CUDA support
+# Replace 'cu126' with your CUDA version: cu118, cu121, cu124, cu126, etc.
+# Check your CUDA version with: nvcc --version or nvidia-smi
+# Examples:
+#   CUDA 11.8 → cu118
+#   CUDA 12.1 → cu121
+#   CUDA 12.6 → cu126
+#   CUDA 13.x → cu130 (when available)
+pip install torch --index-url https://download.pytorch.org/whl/cu126
+
+# Install telemetry library
+pip install nvidia-ml-py
+```
+
+#### AMD ROCm Setup
+```bash
+# Detect ROCm version and install matching PyTorch
+ROCM_VER=$(cat /opt/rocm/.info/version | cut -d'-' -f1 | cut -d'.' -f1,2)
+pip install torch --index-url https://download.pytorch.org/whl/rocm${ROCM_VER}
+
+# Add ROCm's amdsmi to Python path (auto-detects Python version)
+export PYTHONPATH=/opt/rocm/lib/$(ls /opt/rocm/lib | grep python):$PYTHONPATH
+```
+
+#### Apple Silicon (MPS) Setup
+```bash
+# Install PyTorch (MPS backend included automatically)
+pip install torch
+```
+
+#### CPU-Only Setup
+```bash
+# Install PyTorch CPU-only build
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+### Optional Dependencies
+
+| Package | Purpose | Installation |
+|---------|---------|--------------|
+| `pyyaml` | YAML config file support | `pip install pyyaml` |
+| `setproctitle` | Custom process names in `ps`/`top` | `pip install setproctitle` |
+
+### Telemetry Dependencies
+
+| Platform | Telemetry Library | Installation |
+|----------|------------------|--------------|
+| **NVIDIA** | `pynvml` | `pip install nvidia-ml-py` |
+| **AMD ROCm** | `amdsmi` | Bundled with ROCm (must match ROCm version) |
+| **Apple/CPU** | Built-in | No additional install needed |
+
+---
+
+## Quick Start
+Benchmark a single matrix-multiply workload on the first device:
+```bash
+./torch-hammer.py --batched-gemm
+```
+
+### Tuning for Device Memory
+
+Default parameters target GPUs with 80GB+ VRAM. For GPUs with less memory, reduce problem sizes to avoid out-of-memory errors:
+
+| GPU VRAM | Recommended GEMM Size | Example |
+|----------|----------------------|---------|
+| 80GB+ (H100, A100-80GB, MI300X) | 16384×16384 | `--m 16384 --n 16384 --k 16384` |
+| 40-48GB (A100-40GB, A6000) | 8192×8192 | `--m 8192 --n 8192 --k 8192` |
+| 16-24GB (RTX 4090, A5000) | 4096×4096 | `--m 4096 --n 4096 --k 4096` |
+| 8-12GB (RTX 3080, T4) | 2048×2048 | `--m 2048 --n 2048 --k 2048` |
+
+**Auto-scaling option:** Use `--stress-test` to automatically scale problem sizes based on available GPU memory:
+```bash
+./torch-hammer.py --batched-gemm --stress-test
+```
+
+**Other memory-sensitive parameters:**
+- FFT: `--fft-size` (default 128³ uses ~16MB, try 64 for small GPUs)
+- Sparse MM: `--sparse-m`, `--sparse-n`, `--sparse-k` (default 8192)
+- Heat/Schrödinger: `--heat-grid-size`, `--schrodinger-grid-size`
+
+---
+
+## Command-line Reference
+`./torch-hammer.py -h` prints the full help.  
+The most important switches are summarised below (defaults in _italics_).
+
+### Global
+| Option | Description |
+|--------|-------------|
+| `--no-log` | Disable all logging. |
+| `--log-file <path>` | Append all log lines to `path`. |
+| `--log-dir <path>` | Directory for per-GPU log files (multi-GPU runs). |
+| `--verbose` | One line per iteration (see examples). |
+| `--verbose-file-only` | With `--log-file` or `--log-dir`, suppress stdout (file only). |
+| `--device-index <int>` | GPU index to use (default: 0). |
+| `--all-gpus` | Run on all available GPUs in parallel. |
+| `--gpu-list <indices>` | Comma-separated GPU indices (e.g., `0,2,3`). |
+| `--warmup <int>` | Warm-up iterations before timing (default: 10). |
+| `--duration <float>` | Run each benchmark for specified seconds (overrides iteration counts). |
+| `--repeats <int>` | Number of times to repeat entire benchmark suite (default: 1). |
+| `--repeat-delay <float>` | Delay in seconds between repeats for thermal stabilization (default: 0). |
+| `--cpu-affinity` | NUMA-aware CPU binding (enabled by default, Linux only). |
+| `--no-cpu-affinity` | Disable NUMA-aware CPU binding. |
+| `--cpu-gpu-map <mapping>` | Manual CPU-GPU binding (e.g., `0:0-15,1:16-31`). |
+
+### Batched GEMM
+| Option | Description |
+|--------|-------------|
+| `--batched-gemm` | Enable this benchmark. |
+| `--batch-count-gemm <int>` | Batch size (default: 128). |
+| `--m / --n / --k <int>` | Matrix sizes M×K · K×N (default: 512 each). |
+| `--inner-loop-batched-gemm <int>` | Timed iterations (default: 10). |
+| `--precision-gemm <dtype>` | `float16`,`bfloat16`,`float32`,… (default: float32). |
+| `--batched-gemm-TF32-mode` | Allow TF32 (if hardware support exists). |
+
+### Convolution
+| Option | Description |
+|--------|-------------|
+| `--convolution` | Enable convolution test. |
+| `--batch-count-convolution <int>` | Batch size (default: 128). |
+| `--in-channels / --out-channels <int>` | Default: 3 / 64. |
+| `--height / --width <int>` | Input size (default: 128×128). |
+| `--kernel-size <int>` | Kernel size (default: 3). |
+| `--inner-loop-convolution <int>` | Timed iterations (default: 10). |
+| `--precision-convolution <dtype>` | Data type. |
+
+### FFT
+| Option | Description |
+|--------|-------------|
+| `--fft` | Enable 3-D FFT test. |
+| `--batch-count-fft <int>` | Batch size (default: 128). |
+| `--nx / --ny / --nz <int>` | Grid size (default: 128³). |
+| `--inner-loop-fft <int>` | Timed iterations (default: 10). |
+| `--precision-fft <dtype>` | Data type. |
+
+### Einsum
+| Option | Description |
+|--------|-------------|
+| `--einsum` | Enable einsum test. |
+| `--batch-count-einsum <int>` | Batch size (default: 128). |
+| `--heads / --seq-len / --d-model <int>` | Default: 8 / 128 / 64. |
+| `--inner-loop-einsum <int>` | Timed iterations (default: 10). |
+| `--precision-einsum <dtype>` | Data type. |
+
+### Memory Traffic
+| Option | Description |
+|--------|-------------|
+| `--memory-traffic` | Enable random traffic test. |
+| `--memory-size <int>` | Elements in array (default: 7,143,424). |
+| `--memory-iterations <int>` | Inner loop per timing (default: 10). |
+| `--inner-loop-memory-traffic <int>` | Timed iterations (default: 10). |
+| `--precision-memory <dtype>` | Data type. |
+
+### Heat Equation
+| Option | Description |
+|--------|-------------|
+| `--heat-equation` | Enable Laplacian stencil solver. |
+| `--heat-grid-size <int>` | Grid size (default: 128). |
+| `--heat-time-steps <int>` | Steps (default: 100). |
+| `--alpha <float>` | Thermal diffusivity (default: 0.01). |
+| `--delta-t <float>` | Time increment (default: 0.01). |
+| `--precision-heat <dtype>` | Data type. |
+
+### Schrödinger Equation
+| Option | Description |
+|--------|-------------|
+| `--schrodinger` | Enable quantum simulation. |
+| `--schrodinger-grid-size <int>` | Grid points (default: 128). |
+| `--schrodinger-time-steps <int>` | Steps (default: 100). |
+| `--schrodinger-delta-x / --schrodinger-delta-t <float>` | Default: 0.1 / 0.01. |
+| `--schrodinger-hbar / --schrodinger-mass <float>` | Default: 1.0 / 1.0. |
+| `--schrodinger-potential {harmonic, barrier}` | Potential (default: harmonic). |
+| `--schrodinger-precision <dtype>` | Data type. |
+
+### Atomic Contention (L2 Cache Stress)
+| Option | Description |
+|--------|-------------|
+| `--atomic-contention` | Enable L2 cache atomic stress test. |
+| `--atomic-target-size <int>` | Size of target array (default: 1,000,000). |
+| `--atomic-num-updates <int>` | Number of scatter_add updates per iter (default: 10,000,000). |
+| `--atomic-contention-range <int>` | Max unique indices; lower = more contention (default: 1024). |
+| `--inner-loop-atomic <int>` | Timed iterations (default: 50). |
+| `--precision-atomic <dtype>` | Data type. |
+
+### Sparse Matrix Multiplication (SpMM)
+| Option | Description |
+|--------|-------------|
+| `--sparse-mm` | Enable sparse matrix multiply test. |
+| `--sparse-m <int>` | Sparse matrix rows (default: 8192). |
+| `--sparse-n <int>` | Dense/output columns (default: 8192). |
+| `--sparse-k <int>` | Sparse cols / Dense rows (default: 8192). |
+| `--sparse-density <float>` | Sparsity (0.10 = 10% non-zeros, default: 0.10). |
+| `--inner-loop-sparse <int>` | Timed iterations (default: 50). |
+| `--precision-sparse <dtype>` | Data type. |
+
+---
+
+## YAML Configuration
+
+For complex test suites, use YAML configuration files instead of long command lines. Supports all benchmarks with full parameter control and multiple test instances.
+
+Example `config.yaml`:
+```yaml
+# Global settings
+verbose: true
+log_file: "stress-test.log"
+device_index: 0
+warmup: 20
+repeats: 3
+repeat_delay: 10
+
+# Benchmark suite - can specify same test multiple times with different params
+benchmarks:
+  - name: batched_gemm
+    precision: float32
+    batch_count: 128
+    m: 4096
+    n: 4096
+    k: 4096
+    inner_loop: 100
+    
+  - name: batched_gemm
+    precision: float64
+    batch_count: 64
+    m: 8192
+    n: 8192
+    k: 8192
+    TF32_mode: false
+    
+  - name: convolution
+    precision: bfloat16
+    batch_count: 256
+    in_channels: 64
+    out_channels: 128
+    
+  - name: fft
+    precision: float32
+    nx: 256
+    ny: 256
+    nz: 256
+    
+  - name: heat_equation
+    precision: float64
+    grid_size: 32768
+    time_steps: 100
+```
+
+Run with:
+```bash
+./torch-hammer.py --config config.yaml
+```
+
+CLI arguments override YAML settings:
+```bash
+# Use config but override to run on GPU 2
+./torch-hammer.py --config config.yaml --device-index 2
+
+# Suppress stdout while keeping verbose CSV in log file
+./torch-hammer.py --config config.yaml --verbose-file-only
+```
+
+See `config-examples/` directory for ready-to-use configurations (`quick-test.yaml`, `stress-test.yaml`).
+
+---
+
+## Verbose
+`--verbose` Presents every iteration into a single row:
+
+
+Save it directly to a file via `--log-file myrun.txt`.
+
+---
+
+## Telemetry Back-ends
+| Hardware | Requirements | Reported Fields* |
+|----------|--------------|------------------|
+| NVIDIA GPU | `pynvml` (nvidia-ml-py) | power, temperature, GPU utilization, clock, memory controller activity, memory utilization, GPU temperature, SM utilization, HBM temperature, thermal throttling status, power limit warnings, ECC errors |
+| AMD ROCm GPU/APU | `amdsmi` Python library | GPU utilization, memory utilization, GPU clock, memory clock, power, temperature (edge/hotspot/memory), serial, throttle status, power cap, thermal warnings |
+| CPU only | None | Vendor, architecture |
+
+\* AMD telemetry uses native `amdsmi` Python API for ROCm 6.1+ with comprehensive metrics including throttle detection, power limit monitoring, and thermal warnings. Per-processor-type field sets automatically adapt for GPU vs CPU/APU.
+
+---
+
+## Examples
+Run the GEMM test against an NVIDIA GH200 module
+```
+./torch-hammer.py --batched-gemm --k 16384 --m 4224 --n 2048 --verbose
+2025-10-28T21:19:11 INFO    Using device cuda:0
+2025-10-28T21:19:11 INFO    Initial telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 2, 'mem_bw_util': 0, 'mem_util': '0.6', 'gpu_clock': 1980, 'mem_clock': 2619, 'power_W': 106.075, 'temp_gpu_C': 34}
+2025-10-28T21:19:20 INFO    iter, test, dtype, gflops, vendor, model, hostname, device_id, serial, sm_util, mem_bw_util, mem_util, gpu_clock, mem_clock, power_W, temp_gpu_C, temp_hbm_C
+2025-10-28T21:19:20 INFO    1, gemm, float32, 49098.63, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1770, 2619, 567.324, 55,
+2025-10-28T21:19:20 INFO    2, gemm, float32, 49008.41, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1770, 2619, 566.19, 55,
+2025-10-28T21:19:21 INFO    3, gemm, float32, 49011.46, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1785, 2619, 566.174, 55,
+2025-10-28T21:19:22 INFO    4, gemm, float32, 49035.82, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1785, 2619, 567.226, 55,
+2025-10-28T21:19:23 INFO    5, gemm, float32, 49054.14, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1785, 2619, 566.38, 55,
+2025-10-28T21:19:23 INFO    6, gemm, float32, 49003.10, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1770, 2619, 565.378, 55,
+2025-10-28T21:19:24 INFO    7, gemm, float32, 49041.47, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1770, 2619, 565.83, 55,
+2025-10-28T21:19:25 INFO    8, gemm, float32, 49069.36, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1785, 2619, 567.327, 55,
+2025-10-28T21:19:26 INFO    9, gemm, float32, 48968.03, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1755, 2619, 565.995, 56,
+2025-10-28T21:19:26 INFO    10, gemm, float32, 49032.55, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 29, 56.6, 1770, 2619, 566.18, 56,
+2025-10-28T21:19:26 INFO    [Batched GEMM] 48968.03/49032.30/49098.63 GFLOP/s (min/mean/max) {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 29, 'mem_util': '56.6', 'gpu_clock': 1770, 'mem_clock': 2619, 'power_W': 566.18, 'temp_gpu_C': 56}
+2025-10-28T21:19:26 INFO    Final telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 29, 'mem_util': '56.6', 'gpu_clock': 1770, 'mem_clock': 2619, 'power_W': 566.18, 'temp_gpu_C': 56}
+2025-10-28T21:19:26 INFO    Benchmark run finished.
+```
+
+Run the GEMM test against an NVIDIA GH200 module using the float64 data type
+```
+./torch-hammer.py --batch-count-gemm=106 --batched-gemm --k 16384 --m 4224 --n 2048 --precision-gemm float64 --verbose
+2025-10-28T23:10:54 INFO    Using device cuda:0
+2025-10-28T23:10:54 INFO    Initial telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 2, 'mem_bw_util': 0, 'mem_util': '0.6', 'gpu_clock': 1980, 'mem_clock': 2619, 'power_W': 106.409, 'temp_gpu_C': 35}
+2025-10-28T23:11:01 INFO    iter, test, dtype, gflops, vendor, model, hostname, device_id, serial, sm_util, mem_bw_util, mem_util, gpu_clock, mem_clock, power_W, temp_gpu_C, temp_hbm_C
+2025-10-28T23:11:01 INFO    1, gemm, float64, 43615.45, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 50, 93.3, 1335, 2619, 565.706, 53,
+2025-10-28T23:11:02 INFO    2, gemm, float64, 43564.93, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 50, 93.3, 1320, 2619, 565.575, 53,
+2025-10-28T23:11:03 INFO    3, gemm, float64, 43479.01, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 51, 93.3, 1320, 2619, 565.031, 53,
+2025-10-28T23:11:03 INFO    4, gemm, float64, 43452.38, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 51, 93.3, 1320, 2619, 564.582, 54,
+2025-10-28T23:11:04 INFO    5, gemm, float64, 43375.87, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 50, 93.3, 1320, 2619, 564.172, 54,
+2025-10-28T23:11:05 INFO    6, gemm, float64, 43448.23, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 51, 93.3, 1320, 2619, 563.456, 54,
+2025-10-28T23:11:05 INFO    7, gemm, float64, 43404.56, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 51, 93.3, 1320, 2619, 563.842, 54,
+2025-10-28T23:11:06 INFO    8, gemm, float64, 43397.94, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 50, 93.3, 1305, 2619, 563.7, 54,
+2025-10-28T23:11:07 INFO    9, gemm, float64, 43472.86, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 51, 93.3, 1320, 2619, 563.753, 54,
+2025-10-28T23:11:08 INFO    10, gemm, float64, 43436.16, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 51, 93.3, 1335, 2619, 563.484, 54,
+2025-10-28T23:11:08 INFO    [Batched GEMM] 43375.87/43464.74/43615.45 GFLOP/s (min/mean/max) {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 51, 'mem_util': '93.3', 'gpu_clock': 1335, 'mem_clock': 2619, 'power_W': 563.484, 'temp_gpu_C': 54}
+2025-10-28T23:11:08 INFO    Final telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 51, 'mem_util': '93.3', 'gpu_clock': 1335, 'mem_clock': 2619, 'power_W': 563.484, 'temp_gpu_C': 54}
+2025-10-28T23:11:08 INFO    Benchmark run finished.
+```
+
+
+Run the GEMM test, but utilize Tensor Cores (if available):
+```
+./torch-hammer.py --batch-count-gemm=106 --batched-gemm --k 16384 --m 4224 --n 2048 --batched-gemm-TF32-mode --verbose
+2025-10-28T23:23:40 INFO    Using device cuda:0
+2025-10-28T23:23:40 INFO    Initial telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 0, 'mem_bw_util': 0, 'mem_util': '0.6', 'gpu_clock': 1980, 'mem_clock': 2619, 'power_W': 106.708, 'temp_gpu_C': 34}
+2025-10-28T23:23:41 INFO    iter, test, dtype, gflops, vendor, model, hostname, device_id, serial, sm_util, mem_bw_util, mem_util, gpu_clock, mem_clock, power_W, temp_gpu_C, temp_hbm_C
+2025-10-28T23:23:41 INFO    1, gemm, float32, 256246.11, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 67, 47.0, 1260, 2619, 559.151, 48,
+2025-10-28T23:23:41 INFO    2, gemm, float32, 253168.00, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 67, 47.0, 1260, 2619, 558.875, 48,
+2025-10-28T23:23:41 INFO    3, gemm, float32, 251230.15, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 70, 47.0, 1230, 2619, 559.197, 48,
+2025-10-28T23:23:41 INFO    4, gemm, float32, 252279.34, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 70, 47.0, 1245, 2619, 557.965, 48,
+2025-10-28T23:23:42 INFO    5, gemm, float32, 253690.52, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 72, 47.0, 1245, 2619, 557.214, 48,
+2025-10-28T23:23:42 INFO    6, gemm, float32, 251942.72, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 68, 47.0, 1260, 2619, 556.396, 49,
+2025-10-28T23:23:42 INFO    7, gemm, float32, 252252.57, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 68, 47.0, 1245, 2619, 558.838, 49,
+2025-10-28T23:23:42 INFO    8, gemm, float32, 252393.06, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 69, 47.0, 1245, 2619, 561.048, 49,
+2025-10-28T23:23:42 INFO    9, gemm, float32, 252073.11, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 69, 47.0, 1260, 2619, 559.898, 49,
+2025-10-28T23:23:42 INFO    10, gemm, float32, 252572.02, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 67, 47.0, 1260, 2619, 558.2, 49,
+2025-10-28T23:23:42 INFO    [Batched GEMM] 251230.15/252784.76/256246.11 GFLOP/s (min/mean/max) {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 67, 'mem_util': '47.0', 'gpu_clock': 1260, 'mem_clock': 2619, 'power_W': 558.2, 'temp_gpu_C': 49}
+2025-10-28T23:23:42 INFO    Final telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 67, 'mem_util': '47.0', 'gpu_clock': 1260, 'mem_clock': 2619, 'power_W': 558.2, 'temp_gpu_C': 49}
+2025-10-28T23:23:42 INFO    Benchmark run finished.
+```
+
+Run the Laplacian Heat Equation
+```
+./torch-hammer.py --heat-equation --heat-grid-size 32768 --heat-time-steps 100 --alpha .000127 --delta-t .001 --precision-heat float64 --verbose
+2025-10-28T23:41:52 INFO    Using device cuda:0
+2025-10-28T23:41:52 INFO    Initial telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 2, 'mem_bw_util': 0, 'mem_util': '0.6', 'gpu_clock': 1980, 'mem_clock': 2619, 'power_W': 105.937, 'temp_gpu_C': 34}
+2025-10-28T23:41:52 INFO    iter, test, dtype, vendor, model, hostname, device_id, serial, sm_util, mem_bw_util, mem_util, gpu_clock, mem_clock, power_W, temp_gpu_C, temp_hbm_C
+2025-10-28T23:41:52 INFO    0.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    1.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    2.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    3.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    4.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    5.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    6.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    7.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    8.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    9.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    10.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    11.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    12.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    13.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    14.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    15.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    16.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    17.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    18.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    19.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    20.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    21.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    22.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    23.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    24.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    25.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    26.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    27.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    28.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    29.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    30.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 113.762, 35,
+2025-10-28T23:41:52 INFO    31.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 2, 0, 42.8, 1980, 2619, 154.74, 35,
+2025-10-28T23:41:52 INFO    32.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 93, 100, 42.8, 1980, 2619, 154.74, 37,
+2025-10-28T23:41:52 INFO    33.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 93, 100, 42.8, 1635, 2619, 204.161, 37,
+2025-10-28T23:41:52 INFO    34.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 93, 100, 42.8, 1635, 2619, 204.161, 39,
+2025-10-28T23:41:52 INFO    35.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1575, 2619, 256.126, 39,
+2025-10-28T23:41:52 INFO    36.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1575, 2619, 256.126, 41,
+2025-10-28T23:41:52 INFO    37.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1605, 2619, 305.641, 41,
+2025-10-28T23:41:52 INFO    38.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1605, 2619, 305.641, 42,
+2025-10-28T23:41:52 INFO    39.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1605, 2619, 365.741, 42,
+2025-10-28T23:41:52 INFO    40.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1605, 2619, 365.741, 42,
+2025-10-28T23:41:52 INFO    41.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1620, 2619, 409.326, 42,
+2025-10-28T23:41:52 INFO    42.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1620, 2619, 409.326, 44,
+2025-10-28T23:41:52 INFO    43.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1545, 2619, 464.929, 44,
+2025-10-28T23:41:53 INFO    44.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1575, 2619, 464.929, 44,
+2025-10-28T23:41:53 INFO    45.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1575, 2619, 506.784, 44,
+2025-10-28T23:41:53 INFO    46.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1560, 2619, 506.784, 44,
+2025-10-28T23:41:53 INFO    47.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1560, 2619, 552.12, 44,
+2025-10-28T23:41:53 INFO    48.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1395, 2619, 552.12, 44,
+2025-10-28T23:41:53 INFO    49.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1395, 2619, 589.225, 44,
+2025-10-28T23:41:53 INFO    50.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1380, 2619, 585.284, 44,
+2025-10-28T23:41:53 INFO    51.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1380, 2619, 585.284, 44,
+2025-10-28T23:41:53 INFO    52.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1380, 2619, 576.641, 44,
+2025-10-28T23:41:53 INFO    53.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1380, 2619, 576.641, 44,
+2025-10-28T23:41:53 INFO    54.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1485, 2619, 572.522, 44,
+2025-10-28T23:41:53 INFO    55.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1485, 2619, 572.522, 45,
+2025-10-28T23:41:53 INFO    56.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 571.509, 45,
+2025-10-28T23:41:53 INFO    57.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 571.509, 45,
+2025-10-28T23:41:53 INFO    58.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 570.536, 45,
+2025-10-28T23:41:53 INFO    59.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 570.536, 45,
+2025-10-28T23:41:53 INFO    60.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 569.789, 45,
+2025-10-28T23:41:53 INFO    61.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 569.789, 46,
+2025-10-28T23:41:53 INFO    62.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1545, 2619, 570.795, 46,
+2025-10-28T23:41:54 INFO    63.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1545, 2619, 570.795, 46,
+2025-10-28T23:41:54 INFO    64.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1515, 2619, 569.745, 46,
+2025-10-28T23:41:54 INFO    65.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1515, 2619, 569.745, 46,
+2025-10-28T23:41:54 INFO    66.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1425, 2619, 566.433, 46,
+2025-10-28T23:41:54 INFO    67.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1395, 2619, 566.433, 46,
+2025-10-28T23:41:54 INFO    68.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1395, 2619, 567.298, 46,
+2025-10-28T23:41:54 INFO    69.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1395, 2619, 567.298, 46,
+2025-10-28T23:41:54 INFO    70.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1395, 2619, 568.042, 46,
+2025-10-28T23:41:54 INFO    71.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1425, 2619, 568.042, 46,
+2025-10-28T23:41:54 INFO    72.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1425, 2619, 569.252, 46,
+2025-10-28T23:41:54 INFO    73.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1440, 2619, 570.087, 46,
+2025-10-28T23:41:54 INFO    74.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1440, 2619, 570.087, 46,
+2025-10-28T23:41:54 INFO    75.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1515, 2619, 569.602, 46,
+2025-10-28T23:41:54 INFO    76.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1515, 2619, 569.602, 46,
+2025-10-28T23:41:54 INFO    77.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.971, 46,
+2025-10-28T23:41:54 INFO    78.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.971, 46,
+2025-10-28T23:41:54 INFO    79.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 569.572, 46,
+2025-10-28T23:41:54 INFO    80.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1530, 2619, 569.572, 47,
+2025-10-28T23:41:55 INFO    81.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 569.063, 47,
+2025-10-28T23:41:55 INFO    82.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 569.063, 47,
+2025-10-28T23:41:55 INFO    83.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1455, 2619, 567.604, 47,
+2025-10-28T23:41:55 INFO    84.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1455, 2619, 567.604, 47,
+2025-10-28T23:41:55 INFO    85.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1425, 2619, 567.397, 47,
+2025-10-28T23:41:55 INFO    86.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1425, 2619, 567.397, 47,
+2025-10-28T23:41:55 INFO    87.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1410, 2619, 567.496, 47,
+2025-10-28T23:41:55 INFO    88.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1410, 2619, 567.496, 47,
+2025-10-28T23:41:55 INFO    89.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1410, 2619, 568.607, 47,
+2025-10-28T23:41:55 INFO    90.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1410, 2619, 568.607, 46,
+2025-10-28T23:41:55 INFO    91.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1425, 2619, 569.332, 46,
+2025-10-28T23:41:55 INFO    92.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1485, 2619, 569.332, 46,
+2025-10-28T23:41:55 INFO    93.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1485, 2619, 569.982, 46,
+2025-10-28T23:41:55 INFO    94.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 569.982, 47,
+2025-10-28T23:41:55 INFO    95.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.653, 47,
+2025-10-28T23:41:55 INFO    96.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.653, 47,
+2025-10-28T23:41:55 INFO    97.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.576, 47,
+2025-10-28T23:41:55 INFO    98.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.576, 47,
+2025-10-28T23:41:55 INFO    99.00, heat, float64, NVIDIA, NVIDIA GH200 120GB, nid001000, 0, 1652422128547, 100, 100, 42.8, 1500, 2619, 568.041, 47,
+2025-10-28T23:41:57 INFO    [Heat] 20048.3 MLUPS total 5.36s {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 100, 'mem_util': '42.8', 'gpu_clock': 1455, 'mem_clock': 2619, 'power_W': 567.965, 'temp_gpu_C': 47}
+2025-10-28T23:41:57 INFO    Final telemetry {'vendor': 'NVIDIA', 'model': 'NVIDIA GH200 120GB', 'device_id': 0, 'hostname': 'nid001000', 'serial': '1652422128547', 'sm_util': 100, 'mem_bw_util': 100, 'mem_util': '42.8', 'gpu_clock': 1455, 'mem_clock': 2619, 'power_W': 567.965, 'temp_gpu_C': 47}
+2025-10-28T23:41:57 INFO    Benchmark run finished.
+```
+
+### Multi-GPU Parallel Execution
+
+Run benchmarks on all GPUs simultaneously with per-GPU log files:
+```bash
+./torch-hammer.py --batched-gemm --all-gpus --log-dir ./logs --verbose-file-only
+
+# Each GPU writes to separate file: logs/gpu0_<timestamp>.log, logs/gpu1_<timestamp>.log, etc.
+# No stdout pollution - all CSV data goes to files only
+```
+
+Run on specific GPU subset with NUMA-aware CPU binding (enabled by default):
+```bash
+./torch-hammer.py --batched-gemm --gpu-list "0,2,3"
+2025-12-08T15:23:10 INFO    GPU 0 on NUMA node 0, using all NUMA CPUs: 0-31
+2025-12-08T15:23:10 INFO    GPU 2 on NUMA node 1, using all NUMA CPUs: 32-63
+2025-12-08T15:23:10 INFO    GPU 3 on NUMA node 1, using all NUMA CPUs: 32-63
+```
+
+Manual CPU-GPU mapping for fine-grained control:
+```bash
+./torch-hammer.py --batched-gemm --gpu-list "0,1" --cpu-gpu-map "0:0-15,1:16-31"
+```
+
+### Repeated Runs for Statistical Analysis
+
+Run benchmark suite multiple times for stability testing:
+```bash
+# Run 10 times to gather statistical distribution
+./torch-hammer.py --batched-gemm --repeats 10
+
+============================================================
+REPEAT 1/10
+============================================================
+[... benchmark output ...]
+
+============================================================
+REPEAT 2/10
+============================================================
+[... benchmark output ...]
+```
+
+With thermal stabilization delay between repeats:
+```bash
+# Run 5 times with 30-second cooling period between runs
+./torch-hammer.py --batched-gemm --repeats 5 --repeat-delay 30
+```
+
+Verbose mode includes repeat number in CSV output:
+```bash
+./torch-hammer.py --batched-gemm --repeats 3 --verbose --log-file stability.csv
+
+# CSV format:
+# repeat, iter, test, dtype, gflops, vendor, model, ...
+# 1, 1, gemm, float32, 49123.45, NVIDIA, ...
+# 1, 2, gemm, float32, 49087.23, NVIDIA, ...
+# ...
+# 2, 1, gemm, float32, 48956.12, NVIDIA, ...
+# 2, 2, gemm, float32, 48998.76, NVIDIA, ...
+```
+
+### Duration-Based Testing
+
+Run each benchmark for a specific duration instead of fixed iterations:
+```bash
+# Run GEMM for 60 seconds per repeat, repeated 3 times
+./torch-hammer.py --batched-gemm --duration 60 --repeats 3
+
+# Total runtime: ~60s × 3 repeats = ~180s
+# (Plus optional --repeat-delay between repeats)
+```
+
+Combined with multi-GPU for cluster stress testing:
+```bash
+# All 8 GPUs run for 5 minutes each (NUMA binding enabled by default)
+./torch-hammer.py --all-gpus \
+  --batched-gemm --convolution --fft \
+  --duration 300 \
+  --log-dir ./stress-test-logs \
+  --verbose-file-only
+```
+
+---
+
+## Contributing
+We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) 
+before submitting pull requests.
+
+**Key requirements:**
+- All commits must be signed off (DCO) - see [CONTRIBUTING.md](CONTRIBUTING.md#developer-certificate-of-origin-dco)
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md)
+- Run syntax check: `python3 -m py_compile torch-hammer.py`
+
+**Areas where help is especially welcome:**
+* Additional benchmarks or kernels  
+* Extended telemetry support:
+  - Additional AMD metrics (PCIe bandwidth, per-CU utilization)
+  - macOS Metal Performance Shaders (MPS) telemetry
+* Packaging / CI for wheels and Homebrew formula  
+* Windows support and testing
+
+**Communication:**
+- **Issues & PRs**: Use the GitHub Issues and Pull Requests tabs
+
+---
+
+## Testing
+
+Torch Hammer includes a comprehensive test suite to ensure reliability across updates.
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests
+pytest tests/ -v
+
+# Run specific test categories
+pytest tests/test_parsing.py -v      # CLI argument parsing
+pytest tests/test_utilities.py -v    # Timer, helpers, validation
+pytest tests/test_telemetry.py -v    # Telemetry classes
+pytest tests/test_smoke.py -v        # Benchmark smoke tests (CPU)
+
+# Run with coverage report
+pytest tests/ --cov=. --cov-report=term-missing
+```
+
+### Test Categories
+
+| Test File | Coverage | Description |
+|-----------|----------|-------------|
+| `test_parsing.py` | CLI & config | Argument parsing, CPU-GPU mapping, validation |
+| `test_utilities.py` | Core helpers | Timer, VerbosePrinter, GFLOP calculations |
+| `test_telemetry.py` | Telemetry | Class structure, thread behavior, factory |
+| `test_smoke.py` | Benchmarks | Run each benchmark on CPU with minimal iterations |
+
+### Writing New Tests
+
+When contributing new features, please include tests:
+
+```python
+# tests/test_myfeature.py
+def test_my_new_function(th):
+    """Test description."""
+    result = th.my_new_function(args)
+    assert result is not None
+    assert result["expected_key"] == expected_value
+```
+
+The `th` fixture (defined in `conftest.py`) provides access to the torch-hammer module.
+
+**Note:** GPU-specific tests are skipped on machines without GPU hardware. The smoke tests run all benchmarks on CPU to verify basic functionality without requiring specialized hardware.
+
+---
+
+## Project Governance
+
+This project is maintained by Hewlett Packard Enterprise. Contributions are reviewed 
+by the maintainer team and merged following the process described in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## License
+
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE.md) file for details.
+
+```
+Copyright 2024-2026 Hewlett Packard Enterprise Development LP
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+

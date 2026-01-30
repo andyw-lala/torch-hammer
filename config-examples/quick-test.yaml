@@ -1,0 +1,32 @@
+# Torch Hammer Configuration: Quick Validation Test
+# Usage: ./torch-hammer.py --config config-examples/quick-test.yaml
+#
+# A minimal configuration for quick hardware validation.
+# Runs a small set of benchmarks with reduced iterations.
+
+profile: "Quick Validation Test"
+description: "Fast sanity check - runs in under 2 minutes"
+
+global:
+  warmup: 5
+  verbose: false
+
+benchmarks:
+  # Matrix multiply - the core GPU stress test
+  - name: batched_gemm
+    enabled: true
+    precision: float32
+    batch_count: 64
+    m: 2048
+    n: 2048
+    k: 2048
+    inner_loop: 10
+
+  # Memory bandwidth test
+  - name: memory_traffic
+    enabled: true
+    precision: float32
+    memory_size: 512
+    memory_iterations: 10
+    memory_pattern: streaming
+    inner_loop: 10

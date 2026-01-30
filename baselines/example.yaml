@@ -1,0 +1,33 @@
+# Torch Hammer Baseline Example - YAML Format
+# Usage: ./torch-hammer.py --batched-gemm --baseline-file baselines/example.yaml
+#
+# Define expected peak performance for your hardware.
+# Torch Hammer will compare measured results against these values.
+
+# Format:
+#   "GPU Model Name":        # Must match what torch-hammer detects
+#     fp32_tflops: <float>   # FP32 peak TFLOPS
+#     fp64_tflops: <float>   # FP64 peak TFLOPS
+#     tf32_tflops: <float>   # TF32 peak TFLOPS (optional)
+#     memory_bandwidth_gbps: <float>  # Memory BW in GB/s
+#     tdp_watts: <int>       # TDP in Watts
+
+Example GPU 1:
+  fp32_tflops: 50.0
+  fp64_tflops: 25.0
+  memory_bandwidth_gbps: 2000.0
+  tdp_watts: 300
+
+Example GPU 2:
+  fp32_tflops: 100.0
+  fp64_tflops: 50.0
+  tf32_tflops: 200.0
+  memory_bandwidth_gbps: 3000.0
+  tdp_watts: 500
+
+# To find your GPU's model name, run:
+#   ./torch-hammer.py --batched-gemm --verbose 2>&1 | grep "model"
+#
+# Or check vendor specs:
+#   NVIDIA: nvidia-smi --query-gpu=name --format=csv
+#   AMD: rocm-smi --showproductname

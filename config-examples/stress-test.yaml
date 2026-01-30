@@ -1,0 +1,119 @@
+# Torch Hammer Configuration: Full Stress Test
+# Usage: ./torch-hammer.py --config config-examples/stress-test.yaml
+#
+# Comprehensive stress test covering all major benchmark types.
+# Use --stress-test flag to auto-scale sizes based on available GPU memory.
+
+profile: "Full Stress Test"
+description: "Comprehensive benchmark suite - runs 15-30 minutes depending on hardware"
+
+global:
+  warmup: 10
+  verbose: true
+  # Uncomment to enable automatic memory-based sizing:
+  # stress_test: true
+  # Uncomment for multi-GPU systems:
+  # all_gpus: true
+  # cpu_affinity: true
+
+benchmarks:
+  # ============================================
+  # COMPUTE-BOUND TESTS
+  # ============================================
+  
+  # Matrix multiply - FP32
+  - name: batched_gemm
+    enabled: true
+    precision: float32
+    batch_count: 128
+    m: 4096
+    n: 4096
+    k: 4096
+    inner_loop: 50
+
+  # Matrix multiply - FP64 (double precision)
+  - name: batched_gemm
+    enabled: true
+    precision: float64
+    batch_count: 64
+    m: 4096
+    n: 4096
+    k: 4096
+    inner_loop: 50
+
+  # Convolution - common in CNNs
+  - name: convolution
+    enabled: true
+    precision: float32
+    batch_count: 128
+    in_channels: 64
+    out_channels: 128
+    height: 224
+    width: 224
+    kernel_size: 3
+    inner_loop: 50
+
+  # Einsum - attention pattern (common in transformers)
+  - name: einsum
+    enabled: true
+    precision: float32
+    batch_count: 32
+    heads: 8
+    seq_len: 512
+    d_model: 64
+    inner_loop: 50
+
+  # ============================================
+  # MEMORY-BOUND TESTS
+  # ============================================
+
+  # Memory traffic - streaming pattern
+  - name: memory_traffic
+    enabled: true
+    precision: float32
+    memory_size: 1024
+    memory_iterations: 100
+    memory_pattern: streaming
+    inner_loop: 20
+
+  # Memory traffic - random access pattern
+  - name: memory_traffic
+    enabled: true
+    precision: float32
+    memory_size: 512
+    memory_iterations: 100
+    memory_pattern: random
+    inner_loop: 20
+
+  # ============================================
+  # SCIENTIFIC COMPUTING TESTS
+  # ============================================
+
+  # FFT - spectral methods
+  - name: fft
+    enabled: true
+    precision: float32
+    batch_count: 64
+    nx: 256
+    ny: 256
+    nz: 256
+    inner_loop: 50
+
+  # Heat equation - stencil computation
+  - name: heat_equation
+    enabled: true
+    precision: float32
+    heat_grid_size: 512
+    heat_time_steps: 1000
+    alpha: 0.01
+    delta_t: 0.001
+    inner_loop: 10
+
+  # Schrödinger equation - complex arithmetic
+  - name: schrodinger
+    enabled: true
+    precision: float32
+    schrodinger_grid_size: 1024
+    schrodinger_time_steps: 500
+    schrodinger_potential: harmonic
+    inner_loop: 10
