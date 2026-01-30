@@ -1,0 +1,18 @@
+# Torch Hammer - Dependencies
+# See README.md for platform-specific PyTorch installation instructions
+
+# Core (required)
+torch>=1.10
+
+# Optional - YAML config support
+pyyaml>=6.0
+
+# Optional - Custom process names in ps/top
+setproctitle>=1.3
+
+# Optional - NVIDIA telemetry (install via: pip install nvidia-ml-py)
+# nvidia-ml-py>=11.0
+
+# Optional - Development/Testing
+pytest>=7.0
+pytest-cov>=4.0
