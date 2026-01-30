@@ -42,11 +42,10 @@ class TestTimer:
     """Tests for the Timer context manager."""
     
     def test_cpu_timing(self, th):
-        """Timer should measure CPU time correctly."""
-        device = torch.device("cpu")
-        
-        with th.Timer(device) as t:
-            time.sleep(0.1)  # Sleep 100ms
+        """Test Timer measures elapsed time on CPU."""
+        timer = th.Timer(device=None)
+        with timer:
+            time.sleep(0.1)
         # Allow generous tolerance for CI runners (sleep(0.1) + overhead)
         assert timer.elapsed >= 0.09  # At least ~90ms
         assert timer.elapsed < 0.3    # But less than 300ms (CI can be slow)
