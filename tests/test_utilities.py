@@ -43,7 +43,9 @@ class TestTimer:
     
     def test_cpu_timing(self, th):
         """Test Timer measures elapsed time on CPU."""
-        timer = th.Timer(device="cpu")
+        import torch
+        # Pass a torch.device object, not a string
+        timer = th.Timer(device=torch.device('cpu'))
         with timer:
             time.sleep(0.1)
         # Allow generous tolerance for CI runners (sleep(0.1) + overhead)
