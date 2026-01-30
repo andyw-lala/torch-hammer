@@ -43,7 +43,7 @@ class TestTimer:
     
     def test_cpu_timing(self, th):
         """Test Timer measures elapsed time on CPU."""
-        timer = th.Timer(device=None)
+        timer = th.Timer(device="cpu")
         with timer:
             time.sleep(0.1)
         # Allow generous tolerance for CI runners (sleep(0.1) + overhead)
