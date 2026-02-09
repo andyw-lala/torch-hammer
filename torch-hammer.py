@@ -4395,4 +4395,3 @@ def export_json_results(results, args, log):
 
 if __name__ == "__main__":
     main()
-
