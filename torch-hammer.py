@@ -1338,21 +1338,24 @@ def _format_telemetry_compact(tel_data: Dict[str, Any]) -> str:
         parts.append(f"Device{device_id}")
     
     # Utilization
-    if 'sm_util' in tel_data:
+    if 'sm_util' in tel_data and tel_data['sm_util'] != 'N/A':
         parts.append(f"SM:{tel_data['sm_util']}%")
-    if 'mem_bw_util' in tel_data:
+    if 'mem_bw_util' in tel_data and tel_data['mem_bw_util'] != 'N/A':
         parts.append(f"MemBW:{tel_data['mem_bw_util']}%")
     
     # Temperature
-    if 'temp_gpu_C' in tel_data:
+    if 'temp_gpu_C' in tel_data and tel_data['temp_gpu_C'] != 'N/A':
         parts.append(f"Temp:{tel_data['temp_gpu_C']}°C")
     
-    # Power
-    if 'power_W' in tel_data:
-        parts.append(f"Power:{tel_data['power_W']:.0f}W")
+    # Power - handle both numeric and string values safely
+    if 'power_W' in tel_data and tel_data['power_W'] != 'N/A':
+        try:
+            parts.append(f"Power:{float(tel_data['power_W']):.0f}W")
+        except (ValueError, TypeError):
+            pass  # Skip if not convertible to float
     
     # Clock
-    if 'gpu_clock' in tel_data:
+    if 'gpu_clock' in tel_data and tel_data['gpu_clock'] != 'N/A':
         parts.append(f"Clock:{tel_data['gpu_clock']}MHz")
     
     # Memory usage
@@ -4392,3 +4395,4 @@ def export_json_results(results, args, log):
 
 if __name__ == "__main__":
     main()
+
