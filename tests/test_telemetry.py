@@ -152,6 +152,96 @@ class TestRocmTelemetryFields:
             assert field in th.RocmTelemetry.CPU_FIELDS, f"Missing CPU field: {field}"
 
 
+class TestRocmPowerFallback:
+    """Tests for AMD ROCm power reading across GPU generations."""
+    
+    def _make_rocm_telemetry_stub(self, th, metrics_dict=None):
+        """Create a RocmTelemetry instance with mocked internals for power testing."""
+        tel = object.__new__(th.RocmTelemetry)
+        tel.hostname = "testhost"
+        tel._model = "MI250"
+        tel._serial = "TEST-SERIAL"
+        tel.idx = 0
+        tel._is_gpu = True
+        tel.supported = th.RocmTelemetry.GPU_FIELDS
+        tel._cpu_power_warned = False
+        tel._cpu_temp_warned = False
+        tel.power_limit_W = None
+        tel.throttle_detected = False
+        tel.throttle_count = 0
+        tel.power_throttle_count = 0
+        tel.thermal_throttle_count = 0
+        tel.readings = {
+            'temp_gpu_C': [], 'power_W': [], 'gpu_clock': [],
+            'sm_util': [], 'mem_util': [], 'mem_used_MB': []
+        }
+        
+        mock_amdsmi = MagicMock()
+        tel.amdsmi = mock_amdsmi
+        tel.handle = MagicMock()
+        
+        default_metrics = {
+            'average_gfx_activity': 95,
+            'average_umc_activity': 50,
+            'current_gfxclk': 1700,
+            'current_uclk': 1600,
+            'current_socket_power': 450,
+            'average_socket_power': 450,
+            'temperature_edge': 65,
+            'throttle_status': 0,
+        }
+        mock_amdsmi.amdsmi_get_gpu_metrics_info.return_value = (
+            metrics_dict if metrics_dict is not None else default_metrics
+        )
+        mock_amdsmi.amdsmi_get_gpu_memory_total.return_value = 64 * 1024**3
+        mock_amdsmi.amdsmi_get_gpu_memory_usage.return_value = 32 * 1024**3
+        mock_amdsmi.AmdSmiMemoryType.VRAM = "VRAM"
+        
+        return tel
+    
+    def test_mi300_power_from_current(self, th):
+        """MI300: current_socket_power is populated, used directly."""
+        tel = self._make_rocm_telemetry_stub(th)
+        data = tel.read()
+        assert data["power_W"] == 450
+    
+    def test_mi250_primary_gcd(self, th):
+        """MI250 primary GCD: current='N/A', average=94 → uses average."""
+        tel = self._make_rocm_telemetry_stub(th, metrics_dict={
+            'average_gfx_activity': 100, 'average_umc_activity': 10,
+            'current_gfxclk': 1605, 'current_uclk': 1600,
+            'current_socket_power': 'N/A',
+            'average_socket_power': 94,
+            'temperature_edge': 44, 'throttle_status': 0,
+        })
+        data = tel.read()
+        assert data["power_W"] == 94
+    
+    def test_mi250_secondary_gcd(self, th):
+        """MI250 secondary GCD: current='N/A', average=0 → N/A (expected)."""
+        tel = self._make_rocm_telemetry_stub(th, metrics_dict={
+            'average_gfx_activity': 99, 'average_umc_activity': 11,
+            'current_gfxclk': 1700, 'current_uclk': 1600,
+            'current_socket_power': 'N/A',
+            'average_socket_power': 0,
+            'temperature_edge': 52, 'throttle_status': 0,
+        })
+        data = tel.read()
+        assert data["power_W"] == "N/A"
+    
+    def test_power_tracked_in_readings(self, th):
+        """Valid power should be tracked in readings list."""
+        tel = self._make_rocm_telemetry_stub(th, metrics_dict={
+            'average_gfx_activity': 95, 'average_umc_activity': 50,
+            'current_gfxclk': 1700, 'current_uclk': 1600,
+            'current_socket_power': 'N/A',
+            'average_socket_power': 94,
+            'temperature_edge': 65, 'throttle_status': 0,
+        })
+        tel.read()
+        assert 94 in tel.readings['power_W']
+
+
 class TestTelemetryThread:
     """Tests for the background telemetry thread."""
     
