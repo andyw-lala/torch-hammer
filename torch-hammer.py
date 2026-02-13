@@ -739,6 +739,7 @@ class RocmTelemetry(TelemetryBase):
         os.environ["AMDSMI_GPU_METRICS_CACHE_MS"] = str(200)
         self.hostname = socket.gethostname().split('.', 1)[0]
         self.amdsmi = amdsmi  # Store module reference for use in read()
+        self.idx = index  # Store PyTorch device index for correct GPU labeling
         amdsmi.amdsmi_init()
         self.handles = amdsmi.amdsmi_get_processor_handles()
         self.handle = self.handles[index]
@@ -861,9 +862,12 @@ class RocmTelemetry(TelemetryBase):
             if mem_clk == 'N/A' or mem_clk == 0:
                 mem_clk = "N/A"
             
-            # Power (from metrics, already in Watts for MI300A/MI300X)
-            power = metrics.get('current_socket_power', metrics.get('average_socket_power', 'N/A'))
-            if power == 'N/A' or power == 0:
+            # Power — try current first (MI300), then average (MI250).
+            # Keys may exist with value 'N/A' or 0; treat both as missing.
+            power = metrics.get('current_socket_power')
+            if power in (None, 'N/A', 0):
+                power = metrics.get('average_socket_power')
+            if power in (None, 'N/A', 0):
                 power = "N/A"
             
             # Temperature (from metrics, try multiple sources)
@@ -932,7 +936,7 @@ class RocmTelemetry(TelemetryBase):
             return {
                 "vendor": "AMD",
                 "model": self._model,
-                "device_id": self.handles.index(self.handle),
+                "device_id": self.idx,
                 "hostname": self.hostname,
                 "serial": self._serial,
                 "sm_util": util,
@@ -964,7 +968,7 @@ class RocmTelemetry(TelemetryBase):
             return {
                 "vendor": "AMD",
                 "model": self._model,
-                "device_id": self.handles.index(self.handle),
+                "device_id": self.idx,
                 "hostname": self.hostname,
                 "serial": self._serial,
                 "cpu_power_W": power,
@@ -1549,10 +1553,13 @@ def device_label(device: torch.device, index: Any = 0) -> str:
         "MPS" for Apple Metal
         "CPU" for CPU-only mode
     """
-    # Normalize index - handle '?' or other non-int fallbacks
-    idx = index if isinstance(index, int) else 0
-    
     if device.type == "cuda":
+        # Prefer device.index (set by torch.device('cuda:N')) over telemetry-derived index
+        # This avoids race conditions with background telemetry thread and
+        # incorrect device_id from AMD amdsmi handle ordering in multi-process runs
+        if device.index is not None:
+            return f"GPU{device.index}"
+        idx = index if isinstance(index, int) else 0
         return f"GPU{idx}"
     elif device.type == "mps":
         return "MPS"
