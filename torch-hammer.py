@@ -3074,7 +3074,7 @@ def build_parser():
     p.add_argument("--schrodinger-hbar", type=float, default=1.0)
     p.add_argument("--schrodinger-mass", type=float, default=1.0)
     p.add_argument("--schrodinger-potential", default="harmonic", choices=["harmonic", "barrier"])
-    p.add_argument("--schrodinger-precision", default="float32", choices=precision_choices)
+    p.add_argument("--precision-schrodinger", default="float32", choices=precision_choices)
     p.add_argument("--inner-loop-schrodinger", type=int, default=10)
     # atomic contention (L2 cache stress)
     p.add_argument("--atomic-contention", action="store_true", help="Stress L2 cache atomic units with scatter_add operations")
