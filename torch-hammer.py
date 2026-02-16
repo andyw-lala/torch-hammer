@@ -2531,7 +2531,7 @@ def schrodinger_equation(a, dev, log, tel, tel_thread, prn):
             a.schrodinger_hbar,
             a.schrodinger_mass,
         )
-        dtype = getattr(torch, a.schrodinger_precision)
+        dtype = getattr(torch, a.precision_schrodinger)
         dtype_str = str(dtype).split(".")[-1]
 
         log.info(f"[{dev_lbl} Schrödinger] Allocating grid ({N} points)...")
@@ -3372,7 +3372,7 @@ def run_single_gpu(args, gpu_index: int, log=None):
             args.heat_grid_size = params["heat_grid_size"]
         
         if args.schrodinger:
-            params = calculate_stress_params("schrodinger", args.schrodinger_precision, available_mb, log)
+            params = calculate_stress_params("schrodinger", args.precision_schrodinger, available_mb, log)
             args.schrodinger_grid_size = params["schrodinger_grid_size"]
         
         if args.atomic_contention:
@@ -3640,12 +3640,12 @@ def run_single_gpu(args, gpu_index: int, log=None):
                         benchmark_results.append(perf)
                 
                 elif bench_name == 'schrodinger':
-                    original_values['schrodinger_precision'] = getattr(args, 'schrodinger_precision', 'complex128')
+                    original_values['precision_schrodinger'] = getattr(args, 'precision_schrodinger', 'complex128')
                     original_values['schrodinger_grid_size'] = getattr(args, 'schrodinger_grid_size', 128)
                     original_values['schrodinger_time_steps'] = getattr(args, 'schrodinger_time_steps', 100)
                     original_values['inner_loop_schrodinger'] = getattr(args, 'inner_loop_schrodinger', 10)
                     
-                    args.schrodinger_precision = bench_config.get('precision', 'complex128')
+                    args.precision_schrodinger = bench_config.get('precision', 'complex128')
                     args.schrodinger_grid_size = bench_config.get('grid_size', getattr(args, 'schrodinger_grid_size', 128))
                     args.schrodinger_time_steps = bench_config.get('time_steps', getattr(args, 'schrodinger_time_steps', 100))
                     args.inner_loop_schrodinger = bench_config.get('inner_loop', getattr(args, 'inner_loop_schrodinger', 10))
