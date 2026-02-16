@@ -40,7 +40,7 @@ class TestArgumentParser:
         assert default_args.precision_einsum == "float32"
         assert default_args.precision_memory == "float32"
         assert default_args.precision_heat == "float32"
-        assert default_args.schrodinger_precision == "float32"
+        assert default_args.precision_schrodinger == "float32"
     
     def test_gemm_args(self, parser):
         """GEMM-specific arguments should parse correctly."""
@@ -151,7 +151,7 @@ class TestArgumentParser:
             "--schrodinger-delta-x", "0.05",
             "--schrodinger-delta-t", "0.005",
             "--schrodinger-potential", "barrier",
-            "--schrodinger-precision", "complex128",
+            "--precision-schrodinger", "complex128",
         ])
         assert args.schrodinger is True
         assert args.schrodinger_grid_size == 256
@@ -159,7 +159,7 @@ class TestArgumentParser:
         assert args.schrodinger_delta_x == 0.05
         assert args.schrodinger_delta_t == 0.005
         assert args.schrodinger_potential == "barrier"
-        assert args.schrodinger_precision == "complex128"
+        assert args.precision_schrodinger == "complex128"
     
     def test_gpu_selection_args(self, parser):
         """GPU selection arguments should parse correctly."""
