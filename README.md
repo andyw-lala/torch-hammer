@@ -172,7 +172,7 @@ Default parameters target GPUs with 80GB+ VRAM. For GPUs with less memory, reduc
 ```
 
 **Other memory-sensitive parameters:**
-- FFT: `--fft-size` (default 128³ uses ~16MB, try 64 for small GPUs)
+- FFT: `--nx`/`--ny`/`--nz` (default 128³ uses ~16MB, try 64 for small GPUs)
 - Sparse MM: `--sparse-m`, `--sparse-n`, `--sparse-k` (default 8192)
 - Heat/Schrödinger: `--heat-grid-size`, `--schrodinger-grid-size`
 
@@ -185,21 +185,72 @@ The most important switches are summarised below (defaults in _italics_).
 ### Global
 | Option | Description |
 |--------|-------------|
+| **Logging & Output** | |
 | `--no-log` | Disable all logging. |
 | `--log-file <path>` | Append all log lines to `path`. |
 | `--log-dir <path>` | Directory for per-GPU log files (multi-GPU runs). |
 | `--verbose` | One line per iteration (see examples). |
 | `--verbose-file-only` | With `--log-file` or `--log-dir`, suppress stdout (file only). |
-| `--device-index <int>` | GPU index to use (default: 0). |
+| `--banner` | Show ASCII banner at startup. |
+| `--json-output <path>` | Write all results and telemetry to a JSON file. |
+| `--summary-csv <path>` | Write benchmark summary table to a CSV file. |
+| **Configuration** | |
+| `--config <path>` | Path to YAML configuration file (see [YAML Configuration](#yaml-configuration)). |
+| `--list-profiles` | List available configuration profiles and exit. |
+| `--dry-run` | Show configuration and exit without running benchmarks. |
+| **Device Selection** | |
+| `--device-index <int>` | GPU index to use (default: _0_). Ignored if `--all-gpus` or `--gpu-list`. |
 | `--all-gpus` | Run on all available GPUs in parallel. |
 | `--gpu-list <indices>` | Comma-separated GPU indices (e.g., `0,2,3`). |
-| `--warmup <int>` | Warm-up iterations before timing (default: 10). |
-| `--duration <float>` | Run each benchmark for specified seconds (overrides iteration counts). |
-| `--repeats <int>` | Number of times to repeat entire benchmark suite (default: 1). |
-| `--repeat-delay <float>` | Delay in seconds between repeats for thermal stabilization (default: 0). |
-| `--cpu-affinity` | NUMA-aware CPU binding (enabled by default, Linux only). |
+| **CPU Affinity & NUMA** | |
+| `--cpu-affinity` | NUMA-aware CPU binding (default: _enabled_, Linux only). |
 | `--no-cpu-affinity` | Disable NUMA-aware CPU binding. |
 | `--cpu-gpu-map <mapping>` | Manual CPU-GPU binding (e.g., `0:0-15,1:16-31`). |
+| `--cpu-list <cores>` | CPU cores for CPU-only mode (e.g., `0-23,48-71` or `all`). Default: all physical cores. |
+| `--parent-cpu <int>` | Pin parent process to a specific CPU core (default: last core of first NUMA node; `-1` to disable). |
+| **Iteration & Duration** | |
+| `--warmup <int>` | Warm-up iterations before timing (default: _10_). |
+| `--duration <float>` | Run each benchmark for specified seconds (overrides iteration counts). |
+| `--min-iterations <int>` | Minimum iterations even if `--duration` is met (default: _10_). |
+| `--max-iterations <int>` | Maximum iterations regardless of `--duration`. |
+| `--repeats <int>` | Number of times to repeat entire benchmark suite (default: _1_). |
+| `--repeat-delay <float>` | Delay in seconds between repeats for thermal stabilization (default: _0_). |
+| **Stress & Scheduling** | |
+| `--stress-test` | Automatically calculate maximum stress parameters based on available GPU memory. |
+| `--shuffle` | Randomize benchmark execution order. |
+| `--startup-delay-per-gpu <float>` | Staggered startup delay per GPU in seconds (GPU _N_ waits _N_ × delay). Helps avoid ROCm memory allocator contention (default: _0_). |
+| **Telemetry Tuning** | |
+| `--skip-telemetry-first-n <int>` | Skip first _N_ telemetry readings when calculating statistics (default: _10_). |
+| `--telemetry-interval-ms <int>` | Telemetry polling interval in milliseconds (default: _100_). Higher values reduce resolution but may improve performance. |
+| `--no-telemetry-thread` | Disable the background telemetry thread entirely (for debugging). |
+| **Thermal / Performance Thresholds** | |
+| `--temp-warn-C <float>` | Temperature warning threshold in °C (default: _90_). |
+| `--temp-critical-C <float>` | Temperature critical threshold in °C (default: _95_). |
+| `--power-warn-pct <float>` | Power-limit warning threshold in % (default: _98_). |
+| `--outlier-threshold-pct <float>` | Multi-GPU outlier detection threshold in % (default: _15_). |
+| `--efficiency-warn-pct <float>` | Hardware efficiency warning threshold in % (default: _70_). |
+| `--baseline-file <path>` | Load hardware baselines from JSON/YAML file for performance validation. |
+| `--no-validation` | Disable hardware performance validation. |
+| **Miscellaneous** | |
+| `--temp-dir <path>` | Directory for temp files (multi-GPU result collection). Falls back to `TORCH_HAMMER_TEMP_DIR` env var, then system temp. |
+
+### Supported Precisions
+
+Each benchmark has its own `--precision-<test>` flag. The available data types vary by benchmark:
+
+| Benchmark | `float16` | `bfloat16` | `float32` | `float64` | `complex64` | `complex128` | Default |
+|-----------|:---------:|:----------:|:---------:|:---------:|:-----------:|:------------:|---------|
+| Batched GEMM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| Convolution | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| FFT | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| Einsum | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| Memory Traffic | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| Heat Equation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| Schrödinger | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| **Atomic Contention** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | float32 |
+| **Sparse MM** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | float32 |
+
+> **Note:** Atomic Contention and Sparse MM do not support complex types. Using TF32 mode (`--batched-gemm-TF32-mode`) forces `float32` regardless of `--precision-gemm`.
 
 ### Batched GEMM
 | Option | Description |
@@ -208,7 +259,7 @@ The most important switches are summarised below (defaults in _italics_).
 | `--batch-count-gemm <int>` | Batch size (default: 128). |
 | `--m / --n / --k <int>` | Matrix sizes M×K · K×N (default: 512 each). |
 | `--inner-loop-batched-gemm <int>` | Timed iterations (default: 10). |
-| `--precision-gemm <dtype>` | `float16`,`bfloat16`,`float32`,… (default: float32). |
+| `--precision-gemm <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 | `--batched-gemm-TF32-mode` | Allow TF32 (if hardware support exists). |
 
 ### Convolution
@@ -220,7 +271,7 @@ The most important switches are summarised below (defaults in _italics_).
 | `--height / --width <int>` | Input size (default: 128×128). |
 | `--kernel-size <int>` | Kernel size (default: 3). |
 | `--inner-loop-convolution <int>` | Timed iterations (default: 10). |
-| `--precision-convolution <dtype>` | Data type. |
+| `--precision-convolution <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 
 ### FFT
 | Option | Description |
@@ -229,7 +280,7 @@ The most important switches are summarised below (defaults in _italics_).
 | `--batch-count-fft <int>` | Batch size (default: 128). |
 | `--nx / --ny / --nz <int>` | Grid size (default: 128³). |
 | `--inner-loop-fft <int>` | Timed iterations (default: 10). |
-| `--precision-fft <dtype>` | Data type. |
+| `--precision-fft <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 
 ### Einsum
 | Option | Description |
@@ -238,16 +289,17 @@ The most important switches are summarised below (defaults in _italics_).
 | `--batch-count-einsum <int>` | Batch size (default: 128). |
 | `--heads / --seq-len / --d-model <int>` | Default: 8 / 128 / 64. |
 | `--inner-loop-einsum <int>` | Timed iterations (default: 10). |
-| `--precision-einsum <dtype>` | Data type. |
+| `--precision-einsum <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 
 ### Memory Traffic
 | Option | Description |
 |--------|-------------|
 | `--memory-traffic` | Enable random traffic test. |
-| `--memory-size <int>` | Elements in array (default: 7,143,424). |
-| `--memory-iterations <int>` | Inner loop per timing (default: 10). |
-| `--inner-loop-memory-traffic <int>` | Timed iterations (default: 10). |
-| `--precision-memory <dtype>` | Data type. |
+| `--memory-size <int>` | Elements in array (default: _1024_). |
+| `--memory-iterations <int>` | Inner loop per timing (default: _10_). |
+| `--memory-pattern <pattern>` | Access pattern: `random` (random indexing), `streaming` (sequential), `unit` (stride-1). Default: _random_. |
+| `--inner-loop-memory-traffic <int>` | Timed iterations (default: _10_). |
+| `--precision-memory <dtype>` | Data type (default: _float32_). Supports all 6 precisions. |
 
 ### Heat Equation
 | Option | Description |
@@ -257,7 +309,8 @@ The most important switches are summarised below (defaults in _italics_).
 | `--heat-time-steps <int>` | Steps (default: 100). |
 | `--alpha <float>` | Thermal diffusivity (default: 0.01). |
 | `--delta-t <float>` | Time increment (default: 0.01). |
-| `--precision-heat <dtype>` | Data type. |
+| `--inner-loop-heat-equation <int>` | Timed iterations (default: _10_). |
+| `--precision-heat <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 
 ### Schrödinger Equation
 | Option | Description |
@@ -267,8 +320,9 @@ The most important switches are summarised below (defaults in _italics_).
 | `--schrodinger-time-steps <int>` | Steps (default: 100). |
 | `--schrodinger-delta-x / --schrodinger-delta-t <float>` | Default: 0.1 / 0.01. |
 | `--schrodinger-hbar / --schrodinger-mass <float>` | Default: 1.0 / 1.0. |
-| `--schrodinger-potential {harmonic, barrier}` | Potential (default: harmonic). |
-| `--schrodinger-precision <dtype>` | Data type. |
+| `--schrodinger-potential {harmonic, barrier}` | Potential (default: _harmonic_). |
+| `--inner-loop-schrodinger <int>` | Timed iterations (default: _10_). |
+| `--schrodinger-precision <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 
 ### Atomic Contention (L2 Cache Stress)
 | Option | Description |
@@ -278,7 +332,7 @@ The most important switches are summarised below (defaults in _italics_).
 | `--atomic-num-updates <int>` | Number of scatter_add updates per iter (default: 10,000,000). |
 | `--atomic-contention-range <int>` | Max unique indices; lower = more contention (default: 1024). |
 | `--inner-loop-atomic <int>` | Timed iterations (default: 50). |
-| `--precision-atomic <dtype>` | Data type. |
+| `--precision-atomic <dtype>` | Data type (default: _float32_). **No complex types** — choices: `float16`, `bfloat16`, `float32`, `float64`. |
 
 ### Sparse Matrix Multiplication (SpMM)
 | Option | Description |
@@ -289,7 +343,7 @@ The most important switches are summarised below (defaults in _italics_).
 | `--sparse-k <int>` | Sparse cols / Dense rows (default: 8192). |
 | `--sparse-density <float>` | Sparsity (0.10 = 10% non-zeros, default: 0.10). |
 | `--inner-loop-sparse <int>` | Timed iterations (default: 50). |
-| `--precision-sparse <dtype>` | Data type. |
+| `--precision-sparse <dtype>` | Data type (default: _float32_). **No complex types** — choices: `float16`, `bfloat16`, `float32`, `float64`. |
 
 ---
 
@@ -358,6 +412,158 @@ CLI arguments override YAML settings:
 ```
 
 See `config-examples/` directory for ready-to-use configurations (`quick-test.yaml`, `stress-test.yaml`).
+
+---
+
+## Hardware Baselines (Performance Validation)
+
+Torch Hammer can compare your measured results against expected hardware performance and flag
+issues automatically. This is **opt-in** — no validation runs unless you supply a baseline file.
+
+### Quick Start
+
+```bash
+# Run with baseline validation
+./torch-hammer.py --batched-gemm --baseline-file baselines/example.yaml
+
+# Run without validation (the default)
+./torch-hammer.py --batched-gemm
+
+# Explicitly disable validation even if a baseline file is loaded
+./torch-hammer.py --batched-gemm --baseline-file my_baselines.yaml --no-validation
+```
+
+### Creating a Baseline File
+
+#### Step 1 — Find your GPU model name
+
+The model name in the baseline file must match what Torch Hammer detects.
+Run a quick test and look for the `model` field:
+
+```bash
+./torch-hammer.py --batched-gemm --inner-loop-batched-gemm 1 --verbose 2>&1 | grep model
+# → 'model': 'NVIDIA GH200 120GB'
+
+# Or use vendor tools directly:
+nvidia-smi --query-gpu=name --format=csv,noheader   # NVIDIA
+rocm-smi --showproductname                            # AMD
+```
+
+#### Step 2 — Create a YAML or JSON file
+
+**YAML** (recommended — supports comments):
+```yaml
+"NVIDIA GH200 120GB":
+  benchmarks:
+    batched_gemm:
+      float32:
+        target_gflops: 49000.0
+        min_efficiency: 90.0
+      float64:
+        target_gflops: 43000.0
+        min_efficiency: 85.0
+      tf32:
+        target_gflops: 252000.0
+        min_efficiency: 85.0
+    heat_equation:
+      float64:
+        target_mlups: 20000.0
+        min_efficiency: 80.0
+    memory_traffic:
+      float32:
+        target_gbps: 4500.0
+        min_efficiency: 75.0
+```
+
+This target-based format lets you set per-benchmark, per-dtype expected values
+and minimum efficiency thresholds. If a benchmark/dtype pair isn't found in
+`benchmarks:`, validation falls back to the top-level `fp32_tflops`/`fp64_tflops`
+values automatically.
+
+**JSON** alternative:
+```json
+{
+  "NVIDIA GH200 120GB": {
+    "fp32_tflops": 51.0,
+    "fp64_tflops": 25.5,
+    "tf32_tflops": 756.0,
+    "memory_bandwidth_gbps": 4800.0,
+    "tdp_watts": 900
+  }
+}
+```
+
+#### Step 3 — Multi-GPU baseline file
+
+For sites with multiple GPU types, list them all in one file.
+Keys must match the model string exactly (case-sensitive):
+
+```yaml
+# my_baselines.yaml
+# Keys must match the model string exactly (case-sensitive)
+# The performance figures below are examples, please check vendor 
+# datasheets for specific figures 
+"NVIDIA GH200 120GB":
+  fp32_tflops: 51.0        # FP32 peak TFLOPS
+  fp64_tflops: 25.5        # FP64 peak TFLOPS
+  tf32_tflops: 756.0       # TF32 peak TFLOPS (Tensor Core)
+  memory_bandwidth_gbps: 4800.0   # HBM3e bandwidth in GB/s
+  tdp_watts: 900           # Thermal Design Power in Watts
+
+"AMD Instinct MI300X":
+  fp32_tflops: 163.4
+  fp64_tflops: 81.7
+  memory_bandwidth_gbps: 5300.0
+  tdp_watts: 750
+
+"NVIDIA A100-SXM4-80GB":
+  fp32_tflops: 19.5
+  fp64_tflops: 9.7
+  tf32_tflops: 156.0
+  memory_bandwidth_gbps: 2039.0
+  tdp_watts: 400
+
+"AMD Instinct MI250X":
+  fp32_tflops: 47.9
+  fp64_tflops: 47.9
+  memory_bandwidth_gbps: 3276.8
+  tdp_watts: 500
+```
+
+### Baseline Fields Reference
+
+| Field | Unit | Used By |
+|-------|------|---------|
+| `fp32_tflops` | TFLOPS | GEMM, Convolution, FFT, Einsum (float32) |
+| `fp64_tflops` | TFLOPS | GEMM, Convolution, FFT, Einsum (float64) |
+| `fp16_tflops` | TFLOPS | GEMM, Convolution, FFT, Einsum (float16/bfloat16) |
+| `tf32_tflops` | TFLOPS | GEMM with `--batched-gemm-TF32-mode` |
+| `memory_bandwidth_gbps` | GB/s | Memory Traffic, Heat Equation, Schrödinger |
+| `tdp_watts` | Watts | Informational (not used for validation today) |
+
+### Validation Output
+
+When baselines are loaded, Torch Hammer reports efficiency alongside results:
+
+```
+✅ Excellent performance: 96.3% of target (49000.0 gflops)
+✅ Good performance: 82.1% of target (43000.0 gflops)
+[WARN] Performance below target: 58.2% of expected 49000.0 gflops (threshold: 70%)
+```
+
+### Tuning Thresholds
+
+The warning thresholds can be adjusted per-run via CLI flags:
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--efficiency-warn-pct` | 70% | Flag results below this % of peak/target |
+| `--temp-warn-C` | 90°C | Temperature warning threshold |
+| `--temp-critical-C` | 95°C | Temperature critical threshold |
+| `--power-warn-pct` | 98% | Power-limit proximity warning |
+| `--outlier-threshold-pct` | 15% | Multi-GPU outlier detection |
+
+See `baselines/` directory for ready-to-use example files.
 
 ---
 
