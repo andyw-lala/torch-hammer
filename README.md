@@ -322,7 +322,7 @@ Each benchmark has its own `--precision-<test>` flag. The available data types v
 | `--schrodinger-hbar / --schrodinger-mass <float>` | Default: 1.0 / 1.0. |
 | `--schrodinger-potential {harmonic, barrier}` | Potential (default: _harmonic_). |
 | `--inner-loop-schrodinger <int>` | Timed iterations (default: _10_). |
-| `--schrodinger-precision <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
+| `--precision-schrodinger <dtype>` | Data type (default: _float32_). See [Supported Precisions](#supported-precisions). |
 
 ### Atomic Contention (L2 Cache Stress)
 | Option | Description |
