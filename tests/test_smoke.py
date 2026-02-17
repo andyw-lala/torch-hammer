@@ -250,7 +250,7 @@ class TestBenchmarkExecution:
         base_args.schrodinger_hbar = 1.0
         base_args.schrodinger_mass = 1.0
         base_args.schrodinger_potential = "harmonic"
-        base_args.schrodinger_precision = "complex64"
+        base_args.precision_schrodinger = "complex64"
         
         mock_telemetry.reset_stats()
         
@@ -273,7 +273,7 @@ class TestBenchmarkExecution:
         base_args.schrodinger_hbar = 1.0
         base_args.schrodinger_mass = 1.0
         base_args.schrodinger_potential = "barrier"
-        base_args.schrodinger_precision = "complex64"
+        base_args.precision_schrodinger = "complex64"
         
         mock_telemetry.reset_stats()
         
