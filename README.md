@@ -1087,6 +1087,21 @@ The `th` fixture (defined in `conftest.py`) provides access to the torch-hammer 
 
 **Note:** GPU-specific tests are skipped on machines without GPU hardware. The smoke tests run all benchmarks on CPU to verify basic functionality without requiring specialized hardware.
 
+### CI Workflow (GitHub Actions)
+
+The GitHub Actions workflow (`.github/workflows/gpu-functional.yml`) runs the
+full pytest suite on `ubuntu-latest` across multiple Python versions (3.9, 3.11,
+3.12) using CPU-only PyTorch.  No GPU hardware is required.
+
+```bash
+# Run locally — identical to what CI runs
+pytest tests/ -v
+```
+
+For GPU-specific regression testing on HPC clusters, an exhaustive **96-test**
+ReFrame suite lives in `reframe/ci_functional_checks.py`.  See
+`reframe/README.md` for details on running it with real GPU hardware.
+
 ---
 
 ## Project Governance

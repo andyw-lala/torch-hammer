@@ -175,6 +175,83 @@ Expected format:
 
 Ensure modules are available and correctly named in your `settings.py`.
 
+## CI Functional Test Suite
+
+`ci_functional_checks.py` is a separate, exhaustive check file designed for
+CI pipelines.  It covers **every benchmark × precision × parameter
+combination** (96 tests total) using deliberately tiny tensor sizes so the
+full suite finishes in minutes.
+
+### Test Breakdown (96 tests)
+
+| Check class | Parameters | Count |
+|-------------|-----------|-------|
+| **Individual benchmark × precision** | | **69** |
+| `CI_GEMM` | 6 precisions | 6 |
+| `CI_GEMM_TF32` | TF32 mode | 1 |
+| `CI_Conv` | 6 precisions | 6 |
+| `CI_FFT` | 6 precisions | 6 |
+| `CI_Einsum` | 6 precisions | 6 |
+| `CI_Memory` | 6 precisions × 3 patterns | 18 |
+| `CI_Heat` | 6 precisions | 6 |
+| `CI_Schrodinger` | 6 precisions × 2 potentials | 12 |
+| `CI_Atomic` | 4 real precisions | 4 |
+| `CI_Sparse` | 4 real precisions | 4 |
+| **Precision matrix (all benchmarks together)** | | **18** |
+| `CI_PrecisionMatrixStandard` | 7 benchmarks × 6 precisions | 6 |
+| `CI_PrecisionMatrixAll` | 9 benchmarks × 4 real precisions | 4 |
+| `CI_PrecisionMatrixAtomic` | Atomic + GEMM × 4 real precisions | 4 |
+| `CI_PrecisionMatrixSparse` | Sparse + GEMM × 4 real precisions | 4 |
+| **Output / control-path** | | **9** |
+| `CI_FullSuite` | All 9 benchmarks | 1 |
+| `CI_CompactCSV` | `--compact` | 1 |
+| `CI_CompactVerbose` | `--compact --verbose` | 1 |
+| `CI_JSONOutput` | `--json-output` | 1 |
+| `CI_DryRun` | `--dry-run` | 1 |
+| `CI_Repeats` | `--repeats=2` | 1 |
+| `CI_ConfigYAML` | `--config` | 1 |
+| `CI_StressTest` | `--stress-test` | 1 |
+| `CI_Shuffle` | `--shuffle` | 1 |
+| **Total** | | **96** |
+
+### Running locally
+
+```bash
+# All 96 CI checks
+reframe -C reframe/settings.py -c reframe/ci_functional_checks.py -r -t ci
+
+# Only GEMM precision tests
+reframe -C reframe/settings.py -c reframe/ci_functional_checks.py -r -t gemm
+
+# Only the precision matrix (all benchmarks together per dtype)
+reframe -C reframe/settings.py -c reframe/ci_functional_checks.py -r -t precision-matrix
+
+# Only output-mode tests (compact, JSON)
+reframe -C reframe/settings.py -c reframe/ci_functional_checks.py -r -t output
+
+# Only control-path tests (dry-run, repeats, shuffle, etc.)
+reframe -C reframe/settings.py -c reframe/ci_functional_checks.py -r -t control
+```
+
+### GitHub Actions
+
+Two workflows cover the full test pyramid:
+
+| Workflow | File | Runner | What it tests |
+|----------|------|--------|---------------|
+| **Functional Tests** | `.github/workflows/gpu-functional.yml` | `ubuntu-latest` (no GPU) | pytest suite (~287 tests) — parsing, smoke, compact, syslog, telemetry, utilities |
+| **GPU Functional Tests (ReFrame)** | `.github/workflows/gpu-reframe.yml` | `[self-hosted, gpu]` | ReFrame CI suite (96 tests) — every benchmark × precision on real GPU hardware |
+
+The ReFrame workflow uses a matrix strategy with one leg per tag:
+
+```
+gemm | conv | fft | einsum | memory | heat | schrodinger | atomic | sparse | precision-matrix | full | output | control
+```
+
+To enable the ReFrame workflow, register a self-hosted runner with labels
+`self-hosted` and `gpu` that has at least one CUDA GPU and PyTorch installed.
+See [GitHub docs on self-hosted runners](https://docs.github.com/en/actions/hosting-your-own-runners).
+
 ## CI/CD Integration
 
 Example GitLab CI:
@@ -197,9 +274,10 @@ benchmark:
 
 When adding new benchmarks to torch-hammer:
 1. Add corresponding test class in `torch_hammer_checks.py`
-2. Define `@performance_function` matching output regex
-3. Add parameter variants for key test dimensions
-4. Update this README
+2. Add a matching CI check in `ci_functional_checks.py` for every supported precision
+3. Define `@performance_function` matching output regex
+4. Add parameter variants for key test dimensions
+5. Update this README
 
 ## License
 
