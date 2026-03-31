@@ -3,7 +3,7 @@
 #
 # Torch Hammer – ReFrame GPU Functional Tests
 #
-# Runs the full 96-test ReFrame CI suite (ci_functional_checks.py) on a
+# Runs the full 92-test ReFrame CI suite (ci_functional_checks.py) on a
 # self-hosted runner with at least one CUDA GPU.  Each matrix leg runs a
 # tag-filtered subset so failures are granular and easy to triage.
 #
@@ -17,7 +17,7 @@
 #   • Manual dispatch (workflow_dispatch)
 #
 # See reframe/README.md for local usage and reframe/ci_functional_checks.py
-# for the 96-test breakdown.
+# for the 92-test breakdown.
 
 name: GPU Functional Tests (ReFrame)
 

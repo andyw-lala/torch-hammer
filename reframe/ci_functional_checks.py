@@ -24,8 +24,8 @@ Usage (CI):
     reframe -C reframe/settings.py -c reframe/ci_functional_checks.py \\
             -r -t ci --performance-report
 
-Test count breakdown (96 tests):
-    ── Individual benchmark × precision (69 tests) ──
+Test count breakdown (92 tests):
+    ── Individual benchmark × precision (67 tests) ──
     GEMM          7  (6 precisions + TF32)
     Conv          6  (6 precisions)
     FFT           6  (6 precisions)
@@ -34,12 +34,12 @@ Test count breakdown (96 tests):
     Heat          6  (6 precisions)
     Schrödinger  12  (6 precisions × 2 potentials)
     Atomic        4  (4 precisions)
-    Sparse        4  (4 precisions)
-    ── Precision matrix: all benchmarks together (18 tests) ──
+    Sparse        2  (2 precisions: float32, float64)
+    ── Precision matrix: all benchmarks together (16 tests) ──
     AllStandard   6  (7 benchmarks × 6 precisions, one invocation each)
     AllReal       4  (9 benchmarks × 4 real precisions, one invocation each)
     PairAtomic    4  (Atomic + GEMM × 4 real precisions)
-    PairSparse    4  (Sparse + GEMM × 4 real precisions)
+    PairSparse    2  (Sparse + GEMM × 2 supported precisions)
     ── Output / control-path checks (9 tests) ──
     FullSuite     1
     CompactCSV    1
@@ -51,7 +51,7 @@ Test count breakdown (96 tests):
     StressTest    1
     Shuffle       1
     ──────────────
-    Total        96
+    Total        92
 """
 
 import os
@@ -63,7 +63,8 @@ import reframe.utility.sanity as sn
 PRECISION_ALL = [
     'bfloat16', 'float16', 'float32', 'float64', 'complex64', 'complex128',
 ]
-PRECISION_REAL = ['float16', 'bfloat16', 'float32', 'float64']  # atomic / sparse
+PRECISION_REAL = ['float16', 'bfloat16', 'float32', 'float64']  # atomic
+PRECISION_SPARSE = ['float32', 'float64']  # torch.sparse.mm only supports 32/64-bit
 
 
 # =====================================================================
@@ -485,13 +486,17 @@ class CI_Atomic(TorchHammerCIBase):
 
 
 # =====================================================================
-#  Sparse MM – 4 real dtypes  (4 tests)
+#  Sparse MM – 2 supported dtypes  (2 tests)
 # =====================================================================
 @rfm.simple_test
 class CI_Sparse(TorchHammerCIBase):
-    """Sparse matrix multiply across real precisions."""
+    """Sparse matrix multiply across supported precisions.
 
-    precision = parameter(PRECISION_REAL)
+    torch.sparse.mm only supports float32/float64 — half-precision
+    dtypes (float16, bfloat16) are gracefully skipped by torch-hammer.
+    """
+
+    precision = parameter(PRECISION_SPARSE)
     tags = {'ci', 'gpu', 'sparse'}
     descr = 'CI · Sparse MM'
 
@@ -507,26 +512,12 @@ class CI_Sparse(TorchHammerCIBase):
 
     @sanity_function
     def validate_run(self):
-        """Sparse must produce a Performance line or a graceful skip.
-        We require the benchmark name to appear (proving it was attempted)
-        and either a Performance line, a skip/warning, or a known error."""
         return sn.all([
             sn.assert_found(r'Sparse MM', self.stdout),
-            sn.any([
-                sn.assert_found(
-                    r'\[GPU\d+\s+Sparse MM\]\s+Performance:',
-                    self.stdout,
-                ),
-                # Graceful skip/warning goes to stdout via log.warning
-                sn.assert_found(
-                    r'Sparse MM.*skipping|Sparse MM.*not supported',
-                    self.stdout,
-                ),
-                sn.assert_found(
-                    r'FAILED|Error|not supported|RuntimeError',
-                    self.stderr,
-                ),
-            ]),
+            sn.assert_found(
+                r'\[GPU\d+\s+Sparse MM\]\s+Performance:',
+                self.stdout,
+            ),
         ])
 
     @performance_function('GFLOP/s')
@@ -760,7 +751,7 @@ class CI_PrecisionMatrixAtomic(TorchHammerCIBase):
 
 
 # =====================================================================
-#  Precision Matrix – Sparse + GEMM pair (4 tests)
+#  Precision Matrix – Sparse + GEMM pair (2 tests)
 # =====================================================================
 @rfm.simple_test
 class CI_PrecisionMatrixSparse(TorchHammerCIBase):
@@ -770,7 +761,7 @@ class CI_PrecisionMatrixSparse(TorchHammerCIBase):
     dense GEMM tensors — this catches those interactions.
     """
 
-    precision = parameter(PRECISION_REAL)
+    precision = parameter(PRECISION_SPARSE)
     tags = {'ci', 'gpu', 'precision-matrix', 'sparse'}
     descr = 'CI · Precision matrix (Sparse + GEMM)'
 

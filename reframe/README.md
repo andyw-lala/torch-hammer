@@ -179,14 +179,14 @@ Ensure modules are available and correctly named in your `settings.py`.
 
 `ci_functional_checks.py` is a separate, exhaustive check file designed for
 CI pipelines.  It covers **every benchmark × precision × parameter
-combination** (96 tests total) using deliberately tiny tensor sizes so the
+combination** (92 tests total) using deliberately tiny tensor sizes so the
 full suite finishes in minutes.
 
-### Test Breakdown (96 tests)
+### Test Breakdown (92 tests)
 
 | Check class | Parameters | Count |
 |-------------|-----------|-------|
-| **Individual benchmark × precision** | | **69** |
+| **Individual benchmark × precision** | | **67** |
 | `CI_GEMM` | 6 precisions | 6 |
 | `CI_GEMM_TF32` | TF32 mode | 1 |
 | `CI_Conv` | 6 precisions | 6 |
@@ -196,12 +196,12 @@ full suite finishes in minutes.
 | `CI_Heat` | 6 precisions | 6 |
 | `CI_Schrodinger` | 6 precisions × 2 potentials | 12 |
 | `CI_Atomic` | 4 real precisions | 4 |
-| `CI_Sparse` | 4 real precisions | 4 |
-| **Precision matrix (all benchmarks together)** | | **18** |
+| `CI_Sparse` | 2 supported precisions (float32, float64) | 2 |
+| **Precision matrix (all benchmarks together)** | | **16** |
 | `CI_PrecisionMatrixStandard` | 7 benchmarks × 6 precisions | 6 |
 | `CI_PrecisionMatrixAll` | 9 benchmarks × 4 real precisions | 4 |
 | `CI_PrecisionMatrixAtomic` | Atomic + GEMM × 4 real precisions | 4 |
-| `CI_PrecisionMatrixSparse` | Sparse + GEMM × 4 real precisions | 4 |
+| `CI_PrecisionMatrixSparse` | Sparse + GEMM × 2 supported precisions | 2 |
 | **Output / control-path** | | **9** |
 | `CI_FullSuite` | All 9 benchmarks | 1 |
 | `CI_CompactCSV` | `--compact` | 1 |
@@ -212,12 +212,12 @@ full suite finishes in minutes.
 | `CI_ConfigYAML` | `--config` | 1 |
 | `CI_StressTest` | `--stress-test` | 1 |
 | `CI_Shuffle` | `--shuffle` | 1 |
-| **Total** | | **96** |
+| **Total** | | **92** |
 
 ### Running locally
 
 ```bash
-# All 96 CI checks
+# All 92 CI checks
 reframe -C reframe/settings.py -c reframe/ci_functional_checks.py -r -t ci
 
 # Only GEMM precision tests
@@ -240,7 +240,7 @@ Two workflows cover the full test pyramid:
 | Workflow | File | Runner | What it tests |
 |----------|------|--------|---------------|
 | **Functional Tests** | `.github/workflows/gpu-functional.yml` | `ubuntu-latest` (no GPU) | pytest suite (~287 tests) — parsing, smoke, compact, syslog, telemetry, utilities |
-| **GPU Functional Tests (ReFrame)** | `.github/workflows/gpu-reframe.yml` | `[self-hosted, gpu]` | ReFrame CI suite (96 tests) — every benchmark × precision on real GPU hardware |
+| **GPU Functional Tests (ReFrame)** | `.github/workflows/gpu-reframe.yml` | `[self-hosted, gpu]` | ReFrame CI suite (92 tests) — every benchmark × precision on real GPU hardware |
 
 The ReFrame workflow uses a matrix strategy with one leg per tag:
 

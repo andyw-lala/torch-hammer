@@ -1098,7 +1098,7 @@ full pytest suite on `ubuntu-latest` across multiple Python versions (3.9, 3.11,
 pytest tests/ -v
 ```
 
-For GPU-specific regression testing on HPC clusters, an exhaustive **96-test**
+For GPU-specific regression testing on HPC clusters, an exhaustive **92-test**
 ReFrame suite lives in `reframe/ci_functional_checks.py`.  See
 `reframe/README.md` for details on running it with real GPU hardware.
 
