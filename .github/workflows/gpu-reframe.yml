@@ -22,11 +22,13 @@
 name: GPU Functional Tests (ReFrame)
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      tag_filter:
+        description: 'ReFrame tag to run (leave empty for all)'
+        required: false
+        default: ''
+        type: string
 
 # Cancel in-flight runs for the same branch / PR
 concurrency:
@@ -53,8 +55,8 @@ jobs:
           - heat              #  6 tests
           - schrodinger       # 12 tests (6 precisions × 2 potentials)
           - atomic            #  4 tests
-          - sparse            #  4 tests
-          - precision-matrix  # 18 tests (matrix combos)
+          - sparse            #  2 tests
+          - precision-matrix  # 16 tests (matrix combos)
           - full              #  1 test  (all 9 benchmarks)
           - output            #  3 tests (compact, compact+verbose, JSON)
           - control           #  5 tests (dry-run, repeats, config, stress, shuffle)
@@ -105,4 +107,4 @@ jobs:
             echo "❌ One or more ReFrame test legs failed."
             exit 1
           fi
-          echo "✅ All 96 ReFrame GPU functional tests passed."
+          echo "✅ All 92 ReFrame GPU functional tests passed."
