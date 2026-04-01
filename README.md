@@ -255,9 +255,9 @@ Each benchmark has its own `--precision-<test>` flag. The available data types v
 | Heat Equation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
 | Schrödinger | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
 | **Atomic Contention** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | float32 |
-| **Sparse MM** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | float32 |
+| **Sparse MM** | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | float32 |
 
-> **Note:** Atomic Contention and Sparse MM do not support complex types. Using TF32 mode (`--batched-gemm-TF32-mode`) forces `float32` regardless of `--precision-gemm`.
+> **Note:** Atomic Contention does not support complex types. Sparse MM only supports `float32` and `float64` (PyTorch limitation for `torch.sparse.mm`). Using TF32 mode (`--batched-gemm-TF32-mode`) forces `float32` regardless of `--precision-gemm`.
 
 ### Batched GEMM
 | Option | Description |
