@@ -618,10 +618,11 @@ class TestConfigDispatchKeys:
         config = th.load_config(config_path)
         args = self._apply(th, parser, config)
         assert args.benchmark_list is not None
-        # Should have 9 benchmarks (2 GEMM + conv + einsum + 2 memory + fft + heat + sparse)
-        assert len(args.benchmark_list) == 9
-        # First two should be batched_gemm with different precisions
+        # Should have 48 benchmarks (6 GEMM + 6 conv + 6 fft + 6 einsum +
+        # 4 memory + 6 heat + 6 schrodinger + 4 atomic + 4 sparse)
+        assert len(args.benchmark_list) == 48
+        # First entries should be batched_gemm across precisions
         assert args.benchmark_list[0]['name'] == 'batched_gemm'
-        assert args.benchmark_list[0].get('precision_gemm') == 'float32'
-        assert args.benchmark_list[1]['name'] == 'batched_gemm'
-        assert args.benchmark_list[1].get('precision_gemm') == 'float64'
+        assert args.benchmark_list[0].get('precision_gemm') == 'bfloat16'
+        assert args.benchmark_list[2]['name'] == 'batched_gemm'
+        assert args.benchmark_list[2].get('precision_gemm') == 'float32'
