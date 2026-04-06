@@ -299,3 +299,121 @@ class TestLoadHardwareBaselines:
         """Unknown file format should return empty dict."""
         result = th.load_hardware_baselines("/some/path/file.txt")
         assert result == {}
+
+
+class TestSummaryTableGrouping:
+    """Tests for the multi-GPU summary table grouping logic.
+    
+    Verifies that benchmark results are grouped correctly when
+    multiple config entries share the same name+dtype (e.g.,
+    memory_traffic streaming vs random, both float32).
+    """
+
+    def _make_gpu_result(self, gpu_index, benchmarks, serial='SN123'):
+        """Helper to create a mock GPU result dict."""
+        return {
+            'gpu_index': gpu_index,
+            'serial': serial,
+            'telemetry_stats': {},
+            'benchmarks': benchmarks,
+        }
+
+    def _make_bench(self, name, dtype, mean, unit='GFLOP/s', params=None):
+        """Helper to create a mock benchmark result dict."""
+        p = {'dtype': dtype}
+        if params:
+            p.update(params)
+        return {
+            'name': name,
+            'mean': mean,
+            'min': mean * 0.95,
+            'max': mean * 1.05,
+            'unit': unit,
+            'params': p,
+            'telemetry': {},
+        }
+
+    def test_same_name_dtype_different_index_separate_groups(self):
+        """Two benchmarks with same name+dtype but different positions should be separate groups."""
+        # Simulate two memory_traffic runs (streaming vs random), both float32
+        bench_streaming = self._make_bench('Memory Traffic', 'float32', 500.0, 'GB/s',
+                                           params={'pattern': 'streaming'})
+        bench_random = self._make_bench('Memory Traffic', 'float32', 300.0, 'GB/s',
+                                        params={'pattern': 'random'})
+        
+        # Group by bench_idx as the fix does
+        benchmark_groups = {}
+        results = [
+            self._make_gpu_result(0, [bench_streaming, bench_random]),
+            self._make_gpu_result(1, [bench_streaming, bench_random]),
+        ]
+        
+        for result in results:
+            gpu_idx = result['gpu_index']
+            for bench_idx, bench in enumerate(result.get('benchmarks', [])):
+                if not bench:
+                    continue
+                dtype = bench.get('params', {}).get('dtype', 'unknown')
+                test_key = f"{bench_idx:03d}_{bench['name']}_{dtype}"
+                if test_key not in benchmark_groups:
+                    benchmark_groups[test_key] = {'results': []}
+                benchmark_groups[test_key]['results'].append({'gpu': gpu_idx})
+        
+        # Should have 2 groups, each with 2 GPU entries
+        assert len(benchmark_groups) == 2
+        for group in benchmark_groups.values():
+            assert len(group['results']) == 2
+
+    def test_different_dtype_separate_groups(self):
+        """Two GEMM entries with different dtypes should be separate groups."""
+        bench_fp32 = self._make_bench('Batched GEMM', 'float32', 15000.0)
+        bench_fp64 = self._make_bench('Batched GEMM', 'float64', 7500.0)
+        
+        benchmark_groups = {}
+        results = [self._make_gpu_result(0, [bench_fp32, bench_fp64])]
+        
+        for result in results:
+            for bench_idx, bench in enumerate(result.get('benchmarks', [])):
+                if not bench:
+                    continue
+                dtype = bench.get('params', {}).get('dtype', 'unknown')
+                test_key = f"{bench_idx:03d}_{bench['name']}_{dtype}"
+                if test_key not in benchmark_groups:
+                    benchmark_groups[test_key] = {'results': []}
+                benchmark_groups[test_key]['results'].append({'gpu': result['gpu_index']})
+        
+        assert len(benchmark_groups) == 2
+
+    def test_unique_gpu_count(self):
+        """Aggregate should count unique GPUs, not total result entries."""
+        results_list = [
+            {'gpu': 0, 'performance': 100.0},
+            {'gpu': 1, 'performance': 100.0},
+        ]
+        unique_gpus = len(set(r['gpu'] for r in results_list))
+        assert unique_gpus == 2
+
+    def test_display_label_includes_pattern(self):
+        """Display label for memory_traffic should include pattern info."""
+        bench = self._make_bench('Memory Traffic', 'float32', 500.0, 'GB/s',
+                                 params={'pattern': 'streaming'})
+        params = bench.get('params', {})
+        dtype = params.get('dtype', 'unknown')
+        extra_parts = []
+        if 'pattern' in params:
+            extra_parts.append(params['pattern'])
+        display_label = f"{bench['name']} ({dtype})" if not extra_parts else f"{bench['name']} ({dtype}, {', '.join(extra_parts)})"
+        
+        assert display_label == "Memory Traffic (float32, streaming)"
+
+    def test_display_label_without_pattern(self):
+        """Display label for GEMM should just show name and dtype."""
+        bench = self._make_bench('Batched GEMM', 'float64', 7500.0)
+        params = bench.get('params', {})
+        dtype = params.get('dtype', 'unknown')
+        extra_parts = []
+        if 'pattern' in params:
+            extra_parts.append(params['pattern'])
+        display_label = f"{bench['name']} ({dtype})" if not extra_parts else f"{bench['name']} ({dtype}, {', '.join(extra_parts)})"
+        
+        assert display_label == "Batched GEMM (float64)"

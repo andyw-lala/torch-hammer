@@ -501,3 +501,128 @@ class TestApplyConfigToArgs:
         """YAML key 'syslog-dmesg' (hyphenated) should map to args.syslog_dmesg."""
         args = self._apply(th, parser, {"global": {"syslog-dmesg": True}})
         assert args.syslog_dmesg is True
+
+
+class TestConfigGet:
+    """Tests for the _config_get helper function."""
+
+    def test_first_key_found(self, th):
+        """Should return value from the first matching key."""
+        config = {'precision': 'float32', 'precision_gemm': 'float64'}
+        assert th._config_get(config, 'precision', 'precision_gemm', default='bfloat16') == 'float32'
+
+    def test_second_key_found(self, th):
+        """Should return value from the second key when first is missing."""
+        config = {'precision_gemm': 'float64'}
+        assert th._config_get(config, 'precision', 'precision_gemm', default='float32') == 'float64'
+
+    def test_default_when_no_match(self, th):
+        """Should return default when no keys match."""
+        config = {'other_key': 'value'}
+        assert th._config_get(config, 'precision', 'precision_gemm', default='float32') == 'float32'
+
+    def test_empty_config(self, th):
+        """Should return default for empty config dict."""
+        assert th._config_get({}, 'precision', default='float32') == 'float32'
+
+    def test_none_default(self, th):
+        """Should return None when no keys match and no default given."""
+        assert th._config_get({'x': 1}, 'y') is None
+
+
+class TestConfigDispatchKeys:
+    """Tests for config dispatch accepting both short and full attribute name keys."""
+
+    def _apply(self, th, parser, config):
+        """Helper: parse empty CLI, apply config, return args."""
+        import sys
+        orig = sys.argv
+        sys.argv = ["torch-hammer.py"]
+        try:
+            args = parser.parse_args([])
+            return th.apply_config_to_args(args, config)
+        finally:
+            sys.argv = orig
+
+    def test_gemm_short_keys(self, th, parser):
+        """Short keys (precision, batch_count) should work for batched_gemm."""
+        config = {
+            "benchmarks": [
+                {"name": "batched_gemm", "precision": "float64", "batch_count": 32}
+            ]
+        }
+        args = self._apply(th, parser, config)
+        assert args.benchmark_list is not None
+        assert len(args.benchmark_list) == 1
+        bench = args.benchmark_list[0]
+        assert bench['precision'] == 'float64'
+        assert bench['batch_count'] == 32
+
+    def test_gemm_full_keys(self, th, parser):
+        """Full attribute keys (precision_gemm, batch_count_gemm) should work."""
+        config = {
+            "benchmarks": [
+                {"name": "batched_gemm", "precision_gemm": "float64", "batch_count_gemm": 32}
+            ]
+        }
+        args = self._apply(th, parser, config)
+        assert args.benchmark_list is not None
+        bench = args.benchmark_list[0]
+        assert bench['precision_gemm'] == 'float64'
+        assert bench['batch_count_gemm'] == 32
+
+    def test_dual_gemm_entries_preserved(self, th, parser):
+        """Two GEMM entries with different precisions should both be in benchmark_list."""
+        config = {
+            "benchmarks": [
+                {"name": "batched_gemm", "precision_gemm": "float32"},
+                {"name": "batched_gemm", "precision_gemm": "float64"},
+            ]
+        }
+        args = self._apply(th, parser, config)
+        assert len(args.benchmark_list) == 2
+        assert args.benchmark_list[0]['precision_gemm'] == 'float32'
+        assert args.benchmark_list[1]['precision_gemm'] == 'float64'
+
+    def test_memory_traffic_pattern_in_config(self, th, parser):
+        """memory_pattern key should be preserved in benchmark_list."""
+        config = {
+            "benchmarks": [
+                {"name": "memory_traffic", "memory_pattern": "streaming"},
+                {"name": "memory_traffic", "memory_pattern": "random"},
+            ]
+        }
+        args = self._apply(th, parser, config)
+        assert len(args.benchmark_list) == 2
+        assert args.benchmark_list[0]['memory_pattern'] == 'streaming'
+        assert args.benchmark_list[1]['memory_pattern'] == 'random'
+
+    def test_disabled_benchmark_excluded(self, th, parser):
+        """Benchmarks with enabled: false should not appear in benchmark_list."""
+        config = {
+            "benchmarks": [
+                {"name": "batched_gemm", "enabled": True},
+                {"name": "fft", "enabled": False},
+            ]
+        }
+        args = self._apply(th, parser, config)
+        assert len(args.benchmark_list) == 1
+        assert args.benchmark_list[0]['name'] == 'batched_gemm'
+
+    def test_platform_stress_config_loads(self, th, parser):
+        """The platform-stress.yaml config should load and parse correctly."""
+        import os
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config-examples', 'platform-stress.yaml')
+        if not os.path.exists(config_path):
+            pytest.skip("platform-stress.yaml not found")
+        config = th.load_config(config_path)
+        args = self._apply(th, parser, config)
+        assert args.benchmark_list is not None
+        # Should have 47 benchmarks (6 GEMM + 6 conv + 5 fft + 6 einsum +
+        # 4 memory + 6 heat + 6 schrodinger + 4 atomic + 4 sparse)
+        assert len(args.benchmark_list) == 47
+        # First entries should be batched_gemm across precisions
+        assert args.benchmark_list[0]['name'] == 'batched_gemm'
+        assert args.benchmark_list[0].get('precision_gemm') == 'bfloat16'
+        assert args.benchmark_list[2]['name'] == 'batched_gemm'
+        assert args.benchmark_list[2].get('precision_gemm') == 'float32'

@@ -1,0 +1,297 @@
+# Torch Hammer Configuration: Platform Performance Screen
+#
+# A comprehensive stress config that runs every benchmark across all
+# supported precisions with aggressive parameters. Designed for full
+# platform characterization and regression testing.
+#
+# Uses --stress-test to auto-size tensors to fill available GPU memory,
+# and --duration to run each benchmark for a fixed wall-clock window.
+#
+# Usage:
+#   python torch-hammer.py --config config-examples/platform-stress.yaml \
+#       --stress-test --all-gpus --json-output results.json
+#
+# Quick single-GPU run:
+#   python torch-hammer.py --config config-examples/platform-stress.yaml \
+#       --stress-test --device-index 0 --summary-csv summary.csv
+#
+# Precision coverage:
+#   Standard benchmarks: bfloat16, float16, float32, float64, complex64, complex128
+#   FFT:                 float16, float32, float64, complex64, complex128 (bfloat16 unsupported)
+#   Atomic / Sparse:     bfloat16, float16, float32, float64 (real only)
+#   Memory traffic:      float32, float64 (streaming + random patterns)
+#
+# Total: 47 benchmark entries. Estimated runtime ~30-45 minutes per GPU.
+
+profile: "Platform Performance Screen"
+description: "Full precision sweep across all benchmarks — auto-sized to fill memory"
+
+global:
+  warmup: 10
+  duration: 30
+  all_gpus: true
+  verbose: true
+
+runtime:
+  temp_warn_C: 85.0
+  temp_critical_C: 92.0
+  power_warn_pct: 95.0
+
+benchmarks:
+  # ══════════════════════════════════════════════════════════════
+  # BATCHED GEMM — all 6 precisions
+  # ══════════════════════════════════════════════════════════════
+  - name: batched_gemm
+    precision_gemm: bfloat16
+    batch_count_gemm: 128
+
+  - name: batched_gemm
+    precision_gemm: float16
+    batch_count_gemm: 128
+
+  - name: batched_gemm
+    precision_gemm: float32
+    batch_count_gemm: 128
+
+  - name: batched_gemm
+    precision_gemm: float64
+    batch_count_gemm: 128
+
+  - name: batched_gemm
+    precision_gemm: complex64
+    batch_count_gemm: 64
+
+  - name: batched_gemm
+    precision_gemm: complex128
+    batch_count_gemm: 64
+
+  # ══════════════════════════════════════════════════════════════
+  # CONVOLUTION — all 6 precisions
+  # ══════════════════════════════════════════════════════════════
+  - name: convolution
+    precision_convolution: bfloat16
+    batch_count_convolution: 256
+    in_channels: 128
+    out_channels: 512
+    kernel_size: 3
+
+  - name: convolution
+    precision_convolution: float16
+    batch_count_convolution: 256
+    in_channels: 128
+    out_channels: 512
+    kernel_size: 3
+
+  - name: convolution
+    precision_convolution: float32
+    batch_count_convolution: 256
+    in_channels: 128
+    out_channels: 512
+    kernel_size: 3
+
+  - name: convolution
+    precision_convolution: float64
+    batch_count_convolution: 128
+    in_channels: 128
+    out_channels: 512
+    kernel_size: 3
+
+  - name: convolution
+    precision_convolution: complex64
+    batch_count_convolution: 64
+    in_channels: 64
+    out_channels: 256
+    kernel_size: 3
+
+  - name: convolution
+    precision_convolution: complex128
+    batch_count_convolution: 64
+    in_channels: 64
+    out_channels: 256
+    kernel_size: 3
+
+  # ══════════════════════════════════════════════════════════════
+  # FFT — float16, float32, float64, complex64, complex128
+  # (bfloat16 not supported by torch.fft.fftn)
+  # ══════════════════════════════════════════════════════════════
+  - name: fft
+    precision_fft: float16
+    batch_count_fft: 128
+
+  - name: fft
+    precision_fft: float32
+    batch_count_fft: 128
+
+  - name: fft
+    precision_fft: float64
+    batch_count_fft: 64
+
+  - name: fft
+    precision_fft: complex64
+    batch_count_fft: 64
+
+  - name: fft
+    precision_fft: complex128
+    batch_count_fft: 64
+
+  # ══════════════════════════════════════════════════════════════
+  # EINSUM ATTENTION — all 6 precisions
+  # ══════════════════════════════════════════════════════════════
+  - name: einsum
+    precision_einsum: bfloat16
+    batch_count_einsum: 128
+    heads: 32
+    d_model: 128
+
+  - name: einsum
+    precision_einsum: float16
+    batch_count_einsum: 128
+    heads: 32
+    d_model: 128
+
+  - name: einsum
+    precision_einsum: float32
+    batch_count_einsum: 128
+    heads: 32
+    d_model: 128
+
+  - name: einsum
+    precision_einsum: float64
+    batch_count_einsum: 64
+    heads: 32
+    d_model: 128
+
+  - name: einsum
+    precision_einsum: complex64
+    batch_count_einsum: 32
+    heads: 16
+    d_model: 128
+
+  - name: einsum
+    precision_einsum: complex128
+    batch_count_einsum: 32
+    heads: 16
+    d_model: 128
+
+  # ══════════════════════════════════════════════════════════════
+  # MEMORY TRAFFIC — float32 + float64, streaming + random
+  # ══════════════════════════════════════════════════════════════
+  - name: memory_traffic
+    precision_memory: float32
+    memory_pattern: streaming
+    memory_iterations: 200
+
+  - name: memory_traffic
+    precision_memory: float32
+    memory_pattern: random
+    memory_iterations: 200
+
+  - name: memory_traffic
+    precision_memory: float64
+    memory_pattern: streaming
+    memory_iterations: 200
+
+  - name: memory_traffic
+    precision_memory: float64
+    memory_pattern: random
+    memory_iterations: 200
+
+  # ══════════════════════════════════════════════════════════════
+  # HEAT EQUATION — all 6 precisions
+  # ══════════════════════════════════════════════════════════════
+  - name: heat_equation
+    precision_heat: bfloat16
+    heat_time_steps: 2000
+
+  - name: heat_equation
+    precision_heat: float16
+    heat_time_steps: 2000
+
+  - name: heat_equation
+    precision_heat: float32
+    heat_time_steps: 2000
+
+  - name: heat_equation
+    precision_heat: float64
+    heat_time_steps: 2000
+
+  - name: heat_equation
+    precision_heat: complex64
+    heat_time_steps: 1000
+
+  - name: heat_equation
+    precision_heat: complex128
+    heat_time_steps: 1000
+
+  # ══════════════════════════════════════════════════════════════
+  # SCHRÖDINGER EQUATION — all 6 precisions
+  # ══════════════════════════════════════════════════════════════
+  - name: schrodinger
+    precision_schrodinger: bfloat16
+    schrodinger_time_steps: 2000
+
+  - name: schrodinger
+    precision_schrodinger: float16
+    schrodinger_time_steps: 2000
+
+  - name: schrodinger
+    precision_schrodinger: float32
+    schrodinger_time_steps: 2000
+
+  - name: schrodinger
+    precision_schrodinger: float64
+    schrodinger_time_steps: 2000
+
+  - name: schrodinger
+    precision_schrodinger: complex64
+    schrodinger_time_steps: 1000
+
+  - name: schrodinger
+    precision_schrodinger: complex128
+    schrodinger_time_steps: 1000
+
+  # ══════════════════════════════════════════════════════════════
+  # ATOMIC CONTENTION — 4 real precisions only
+  # ══════════════════════════════════════════════════════════════
+  - name: atomic_contention
+    precision_atomic: bfloat16
+    atomic_target_size: 2000000
+    atomic_num_updates: 50000000
+    atomic_contention_range: 2048
+
+  - name: atomic_contention
+    precision_atomic: float16
+    atomic_target_size: 2000000
+    atomic_num_updates: 50000000
+    atomic_contention_range: 2048
+
+  - name: atomic_contention
+    precision_atomic: float32
+    atomic_target_size: 2000000
+    atomic_num_updates: 50000000
+    atomic_contention_range: 2048
+
+  - name: atomic_contention
+    precision_atomic: float64
+    atomic_target_size: 2000000
+    atomic_num_updates: 50000000
+    atomic_contention_range: 2048
+
+  # ══════════════════════════════════════════════════════════════
+  # SPARSE MM — 4 real precisions only
+  # ══════════════════════════════════════════════════════════════
+  - name: sparse_mm
+    precision_sparse: bfloat16
+    sparse_density: 0.10
+
+  - name: sparse_mm
+    precision_sparse: float16
+    sparse_density: 0.10
+
+  - name: sparse_mm
+    precision_sparse: float32
+    sparse_density: 0.10
+
+  - name: sparse_mm
+    precision_sparse: float64
+    sparse_density: 0.10

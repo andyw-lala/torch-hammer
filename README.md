@@ -288,15 +288,15 @@ Each benchmark has its own `--precision-<test>` flag. The available data types v
 |-----------|:---------:|:----------:|:---------:|:---------:|:-----------:|:------------:|---------|
 | Batched GEMM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
 | Convolution | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
-| FFT | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
+| FFT | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | float32 |
 | Einsum | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
 | Memory Traffic | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
 | Heat Equation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
 | Schrödinger | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | float32 |
-| **Atomic Contention** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | float32 |
+| **Atomic Contention** | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | float32 |
 | **Sparse MM** | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | float32 |
 
-> **Note:** Atomic Contention does not support complex types. Sparse MM only supports `float32` and `float64` (PyTorch limitation for `torch.sparse.mm`). Using TF32 mode (`--batched-gemm-TF32-mode`) forces `float32` regardless of `--precision-gemm`.
+> **Note:** FFT does not support `bfloat16` (`torch.fft.fftn` limitation). Atomic Contention and Sparse MM only support `float32` and `float64`. Using TF32 mode (`--batched-gemm-TF32-mode`) forces `float32` regardless of `--precision-gemm`.
 
 ### Batched GEMM
 | Option | Description |
@@ -461,7 +461,7 @@ CLI arguments override YAML settings:
 ./torch-hammer.py --config config.yaml --verbose-file-only
 ```
 
-See `config-examples/` directory for ready-to-use configurations (`quick-test.yaml`, `stress-test.yaml`).
+See `config-examples/` directory for ready-to-use configurations (`quick-test.yaml`, `stress-test.yaml`, `platform-stress.yaml`).
 
 ---
 
