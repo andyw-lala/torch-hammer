@@ -17,10 +17,11 @@
 #
 # Precision coverage:
 #   Standard benchmarks: bfloat16, float16, float32, float64, complex64, complex128
+#   FFT:                 float16, float32, float64, complex64, complex128 (bfloat16 unsupported)
 #   Atomic / Sparse:     bfloat16, float16, float32, float64 (real only)
 #   Memory traffic:      float32, float64 (streaming + random patterns)
 #
-# Total: 48 benchmark entries. Estimated runtime ~30-45 minutes per GPU.
+# Total: 47 benchmark entries. Estimated runtime ~30-45 minutes per GPU.
 
 profile: "Platform Performance Screen"
 description: "Full precision sweep across all benchmarks — auto-sized to fill memory"
@@ -110,12 +111,9 @@ benchmarks:
     kernel_size: 3
 
   # ══════════════════════════════════════════════════════════════
-  # FFT — all 6 precisions
+  # FFT — float16, float32, float64, complex64, complex128
+  # (bfloat16 not supported by torch.fft.fftn)
   # ══════════════════════════════════════════════════════════════
-  - name: fft
-    precision_fft: bfloat16
-    batch_count_fft: 128
-
   - name: fft
     precision_fft: float16
     batch_count_fft: 128
