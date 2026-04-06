@@ -1,0 +1,98 @@
+# Torch Hammer Configuration: Platform Performance Screen
+#
+# A standardized "measuring stick" config for comparing GPU platforms.
+# Uses --stress-test to auto-size tensors to fill available GPU memory,
+# and --duration to run each benchmark for a fixed wall-clock window.
+#
+# Usage:
+#   python torch-hammer.py --config config-examples/platform-stress.yaml \
+#       --stress-test --all-gpus --json-output results.json
+#
+# Quick single-GPU run:
+#   python torch-hammer.py --config config-examples/platform-stress.yaml \
+#       --stress-test --device-index 0 --summary-csv summary.csv
+#
+# What this measures:
+#   • GEMM (fp32 + fp64)     — peak compute at both precisions
+#   • Convolution (fp32)      — CNN-style workload throughput
+#   • Einsum (fp32)           — transformer attention throughput
+#   • FFT (fp32)              — spectral methods / signal processing
+#   • Memory streaming (fp32) — sustained memory bandwidth
+#   • Memory random (fp32)    — random-access latency / bandwidth
+#   • Heat equation (fp32)    — stencil compute (memory+compute mixed)
+#   • Sparse MM (fp64)        — sparse algebra throughput
+#
+# Each benchmark runs for 20s after warmup. Total runtime ~5-6 minutes
+# per GPU (9 benchmarks × ~30s each including warmup).
+
+profile: "Platform Performance Screen"
+description: "Standardized GPU performance screening — auto-sized to fill memory"
+
+global:
+  warmup: 10
+  duration: 20
+  all_gpus: true
+  verbose: true
+
+runtime:
+  temp_warn_C: 85.0
+  temp_critical_C: 92.0
+  power_warn_pct: 95.0
+
+benchmarks:
+  # ── Peak Compute ────────────────────────────────────────────
+  # FP32 GEMM: the single most important GPU benchmark
+  - name: batched_gemm
+    precision_gemm: float32
+    batch_count_gemm: 64
+
+  # FP64 GEMM: scientific computing / HPC workloads
+  - name: batched_gemm
+    precision_gemm: float64
+    batch_count_gemm: 64
+
+  # ── AI / ML Workloads ───────────────────────────────────────
+  # Convolution: ResNet-style CNN inference/training
+  - name: convolution
+    precision_convolution: float32
+    batch_count_convolution: 128
+    in_channels: 64
+    out_channels: 256
+    kernel_size: 3
+
+  # Einsum attention: transformer-style QKV attention
+  - name: einsum
+    precision_einsum: float32
+    batch_count_einsum: 64
+    heads: 32
+    d_model: 128
+
+  # ── Memory Subsystem ────────────────────────────────────────
+  # Streaming: sustained sequential bandwidth (like STREAM)
+  - name: memory_traffic
+    precision_memory: float32
+    memory_pattern: streaming
+    memory_iterations: 100
+
+  # Random access: pointer-chasing / gather bandwidth
+  - name: memory_traffic
+    precision_memory: float32
+    memory_pattern: random
+    memory_iterations: 100
+
+  # ── Scientific / HPC ────────────────────────────────────────
+  # FFT: spectral methods, signal processing
+  - name: fft
+    precision_fft: float32
+    batch_count_fft: 64
+
+  # Heat equation: Laplacian stencil (memory+compute balanced)
+  - name: heat_equation
+    precision_heat: float32
+    heat_time_steps: 1000
+
+  # ── Sparse Algebra ──────────────────────────────────────────
+  # Sparse MM: sparse × dense matmul (10% density)
+  - name: sparse_mm
+    precision_sparse: float64
+    sparse_density: 0.10

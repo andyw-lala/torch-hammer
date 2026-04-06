@@ -25,9 +25,33 @@ Override config settings via CLI:
 |------|---------|----------|
 | `quick-test.yaml` | Fast sanity check | ~2 minutes |
 | `stress-test.yaml` | Comprehensive test suite | ~15-30 minutes |
+| `platform-stress.yaml` | Standardized GPU platform screening | ~5-6 minutes per GPU |
 
 ## Configuration File Format
 
+Config files support two key naming styles:
+
+### Short generic keys (used in quick-test.yaml, stress-test.yaml)
+```yaml
+benchmarks:
+  - name: batched_gemm
+    precision: float32         # Short key
+    batch_count: 128           # Short key
+    inner_loop: 50             # Short key
+```
+
+### Full argparse attribute names (used in platform-stress.yaml)
+```yaml
+benchmarks:
+  - name: batched_gemm
+    precision_gemm: float32    # Full attribute name
+    batch_count_gemm: 128      # Full attribute name
+    inner_loop_batched_gemm: 50  # Full attribute name
+```
+
+Both styles work in all config files. Short keys are checked first for backwards compatibility.
+
+### Global settings
 ```yaml
 profile: "Descriptive Name"
 description: "What this config does"
@@ -38,15 +62,10 @@ global:
   all_gpus: true          # Run on all GPUs
   cpu_affinity: true      # NUMA-aware CPU binding
 
-benchmarks:
-  - name: batched_gemm    # Benchmark name
-    enabled: true         # Enable/disable
-    precision: float32    # Data type
-    batch_count: 128      # Batch size
-    m: 4096               # Matrix dimensions
-    n: 4096
-    k: 4096
-    inner_loop: 50        # Iterations
+runtime:
+  duration: 60            # Run each benchmark for 60s
+  temp_warn_C: 85.0       # Temperature warning threshold
+  temp_critical_C: 92.0   # Temperature critical threshold
 ```
 
 ## Creating Custom Configurations

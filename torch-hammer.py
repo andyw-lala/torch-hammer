@@ -3102,6 +3102,19 @@ def load_config(config_path):
         sys.exit(1)
 
 
+def _config_get(bench_config, *keys, default=None):
+    """Look up a value in a benchmark config dict, trying multiple key names in order.
+    
+    Supports both short generic keys (e.g., 'precision', 'batch_count') and
+    full argparse attribute names (e.g., 'precision_gemm', 'batch_count_gemm').
+    Returns the value from the first key found, or default if none match.
+    """
+    for key in keys:
+        if key in bench_config:
+            return bench_config[key]
+    return default
+
+
 def apply_config_to_args(args, config):
     """Apply configuration file settings to args namespace. CLI args take precedence."""
     if not config:
@@ -3798,7 +3811,19 @@ def run_single_gpu(args, gpu_index: int, log=None):
             log.info(f"Running {len(benchmark_list)} benchmark(s) from config file:")
             for idx, bench_config in enumerate(benchmark_list):
                 bench_name = bench_config.get('name', 'UNNAMED')
-                precision = bench_config.get('precision', 'default')
+                # Look up precision using both short and full attribute name keys
+                _prec_keys = {
+                    'batched_gemm': ('precision', 'precision_gemm'),
+                    'convolution': ('precision', 'precision_convolution'),
+                    'fft': ('precision', 'precision_fft'),
+                    'einsum': ('precision', 'precision_einsum'),
+                    'memory_traffic': ('precision', 'precision_memory'),
+                    'heat_equation': ('precision', 'precision_heat'),
+                    'schrodinger': ('precision', 'precision_schrodinger'),
+                    'atomic_contention': ('precision', 'precision_atomic'),
+                    'sparse_mm': ('precision', 'precision_sparse'),
+                }
+                precision = _config_get(bench_config, *_prec_keys.get(bench_name, ('precision',)), default='default')
                 log.info(f"  {idx+1}. {bench_name} ({precision})")
             
             # Run benchmarks from config file list (supports multiple instances)
@@ -3818,13 +3843,13 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['batched_gemm_TF32_mode'] = args.batched_gemm_TF32_mode
                     original_values['inner_loop_batched_gemm'] = args.inner_loop_batched_gemm
                     
-                    args.precision_gemm = bench_config.get('precision', 'float32')
-                    args.batch_count_gemm = bench_config.get('batch_count', args.batch_count_gemm)
-                    args.m = bench_config.get('m', args.m)
-                    args.n = bench_config.get('n', args.n)
-                    args.k = bench_config.get('k', args.k)
-                    args.batched_gemm_TF32_mode = bench_config.get('tf32_mode', False)
-                    args.inner_loop_batched_gemm = bench_config.get('inner_loop', args.inner_loop_batched_gemm)
+                    args.precision_gemm = _config_get(bench_config, 'precision', 'precision_gemm', default='float32')
+                    args.batch_count_gemm = _config_get(bench_config, 'batch_count', 'batch_count_gemm', default=args.batch_count_gemm)
+                    args.m = _config_get(bench_config, 'm', default=args.m)
+                    args.n = _config_get(bench_config, 'n', default=args.n)
+                    args.k = _config_get(bench_config, 'k', default=args.k)
+                    args.batched_gemm_TF32_mode = _config_get(bench_config, 'tf32_mode', 'batched_gemm_TF32_mode', default=False)
+                    args.inner_loop_batched_gemm = _config_get(bench_config, 'inner_loop', 'inner_loop_batched_gemm', default=args.inner_loop_batched_gemm)
                     
                     # DEBUG: Log parameters being used
                     log.info(f"[GPU{gpu_index} GEMM CONFIG] B={args.batch_count_gemm}, M={args.m}, N={args.n}, K={args.k}, dtype={args.precision_gemm}, iters={args.inner_loop_batched_gemm}")
@@ -3851,14 +3876,14 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['kernel_size'] = args.kernel_size
                     original_values['inner_loop_convolution'] = args.inner_loop_convolution
                     
-                    args.precision_convolution = bench_config.get('precision', 'float32')
-                    args.batch_count_convolution = bench_config.get('batch_count', args.batch_count_convolution)
-                    args.in_channels = bench_config.get('in_channels', args.in_channels)
-                    args.out_channels = bench_config.get('out_channels', args.out_channels)
-                    args.height = bench_config.get('height', args.height)
-                    args.width = bench_config.get('width', args.width)
-                    args.kernel_size = bench_config.get('kernel_size', args.kernel_size)
-                    args.inner_loop_convolution = bench_config.get('inner_loop', args.inner_loop_convolution)
+                    args.precision_convolution = _config_get(bench_config, 'precision', 'precision_convolution', default='float32')
+                    args.batch_count_convolution = _config_get(bench_config, 'batch_count', 'batch_count_convolution', default=args.batch_count_convolution)
+                    args.in_channels = _config_get(bench_config, 'in_channels', default=args.in_channels)
+                    args.out_channels = _config_get(bench_config, 'out_channels', default=args.out_channels)
+                    args.height = _config_get(bench_config, 'height', default=args.height)
+                    args.width = _config_get(bench_config, 'width', default=args.width)
+                    args.kernel_size = _config_get(bench_config, 'kernel_size', default=args.kernel_size)
+                    args.inner_loop_convolution = _config_get(bench_config, 'inner_loop', 'inner_loop_convolution', default=args.inner_loop_convolution)
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -3880,12 +3905,12 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['nz'] = args.nz
                     original_values['inner_loop_fft'] = args.inner_loop_fft
                     
-                    args.precision_fft = bench_config.get('precision', 'float32')
-                    args.batch_count_fft = bench_config.get('batch_count', args.batch_count_fft)
-                    args.nx = bench_config.get('nx', args.nx)
-                    args.ny = bench_config.get('ny', args.ny)
-                    args.nz = bench_config.get('nz', args.nz)
-                    args.inner_loop_fft = bench_config.get('inner_loop', args.inner_loop_fft)
+                    args.precision_fft = _config_get(bench_config, 'precision', 'precision_fft', default='float32')
+                    args.batch_count_fft = _config_get(bench_config, 'batch_count', 'batch_count_fft', default=args.batch_count_fft)
+                    args.nx = _config_get(bench_config, 'nx', default=args.nx)
+                    args.ny = _config_get(bench_config, 'ny', default=args.ny)
+                    args.nz = _config_get(bench_config, 'nz', default=args.nz)
+                    args.inner_loop_fft = _config_get(bench_config, 'inner_loop', 'inner_loop_fft', default=args.inner_loop_fft)
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -3907,12 +3932,12 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['d_model'] = args.d_model
                     original_values['inner_loop_einsum'] = args.inner_loop_einsum
                     
-                    args.precision_einsum = bench_config.get('precision', 'float32')
-                    args.batch_count_einsum = bench_config.get('batch_count', args.batch_count_einsum)
-                    args.heads = bench_config.get('heads', args.heads)
-                    args.seq_len = bench_config.get('seq_len', args.seq_len)
-                    args.d_model = bench_config.get('head_dim', args.d_model)
-                    args.inner_loop_einsum = bench_config.get('inner_loop', args.inner_loop_einsum)
+                    args.precision_einsum = _config_get(bench_config, 'precision', 'precision_einsum', default='float32')
+                    args.batch_count_einsum = _config_get(bench_config, 'batch_count', 'batch_count_einsum', default=args.batch_count_einsum)
+                    args.heads = _config_get(bench_config, 'heads', default=args.heads)
+                    args.seq_len = _config_get(bench_config, 'seq_len', default=args.seq_len)
+                    args.d_model = _config_get(bench_config, 'head_dim', 'd_model', default=args.d_model)
+                    args.inner_loop_einsum = _config_get(bench_config, 'inner_loop', 'inner_loop_einsum', default=args.inner_loop_einsum)
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -3930,12 +3955,14 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['precision_memory'] = args.precision_memory
                     original_values['memory_size'] = args.memory_size
                     original_values['memory_iterations'] = args.memory_iterations
+                    original_values['memory_pattern'] = args.memory_pattern
                     original_values['inner_loop_memory_traffic'] = args.inner_loop_memory_traffic
                     
-                    args.precision_memory = bench_config.get('precision', 'float32')
-                    args.memory_size = bench_config.get('size', args.memory_size)
-                    args.memory_iterations = bench_config.get('iterations', args.memory_iterations)
-                    args.inner_loop_memory_traffic = bench_config.get('inner_loop', args.inner_loop_memory_traffic)
+                    args.precision_memory = _config_get(bench_config, 'precision', 'precision_memory', default='float32')
+                    args.memory_size = _config_get(bench_config, 'size', 'memory_size', default=args.memory_size)
+                    args.memory_iterations = _config_get(bench_config, 'iterations', 'memory_iterations', default=args.memory_iterations)
+                    args.memory_pattern = _config_get(bench_config, 'pattern', 'memory_pattern', default=args.memory_pattern)
+                    args.inner_loop_memory_traffic = _config_get(bench_config, 'inner_loop', 'inner_loop_memory_traffic', default=args.inner_loop_memory_traffic)
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -3957,12 +3984,12 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['delta_t'] = getattr(args, 'delta_t', 0.01)
                     original_values['inner_loop_heat_equation'] = getattr(args, 'inner_loop_heat_equation', 10)
                     
-                    args.precision_heat = bench_config.get('precision', 'float64')
-                    args.heat_grid_size = bench_config.get('grid_size', getattr(args, 'heat_grid_size', 128))
-                    args.heat_time_steps = bench_config.get('time_steps', getattr(args, 'heat_time_steps', 100))
-                    args.alpha = bench_config.get('alpha', getattr(args, 'alpha', 0.01))
-                    args.delta_t = bench_config.get('delta_t', getattr(args, 'delta_t', 0.01))
-                    args.inner_loop_heat_equation = bench_config.get('inner_loop', getattr(args, 'inner_loop_heat_equation', 10))
+                    args.precision_heat = _config_get(bench_config, 'precision', 'precision_heat', default='float64')
+                    args.heat_grid_size = _config_get(bench_config, 'grid_size', 'heat_grid_size', default=getattr(args, 'heat_grid_size', 128))
+                    args.heat_time_steps = _config_get(bench_config, 'time_steps', 'heat_time_steps', default=getattr(args, 'heat_time_steps', 100))
+                    args.alpha = _config_get(bench_config, 'alpha', default=getattr(args, 'alpha', 0.01))
+                    args.delta_t = _config_get(bench_config, 'delta_t', default=getattr(args, 'delta_t', 0.01))
+                    args.inner_loop_heat_equation = _config_get(bench_config, 'inner_loop', 'inner_loop_heat_equation', default=getattr(args, 'inner_loop_heat_equation', 10))
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -3982,10 +4009,10 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['schrodinger_time_steps'] = getattr(args, 'schrodinger_time_steps', 100)
                     original_values['inner_loop_schrodinger'] = getattr(args, 'inner_loop_schrodinger', 10)
                     
-                    args.precision_schrodinger = bench_config.get('precision', 'complex128')
-                    args.schrodinger_grid_size = bench_config.get('grid_size', getattr(args, 'schrodinger_grid_size', 128))
-                    args.schrodinger_time_steps = bench_config.get('time_steps', getattr(args, 'schrodinger_time_steps', 100))
-                    args.inner_loop_schrodinger = bench_config.get('inner_loop', getattr(args, 'inner_loop_schrodinger', 10))
+                    args.precision_schrodinger = _config_get(bench_config, 'precision', 'precision_schrodinger', default='complex128')
+                    args.schrodinger_grid_size = _config_get(bench_config, 'grid_size', 'schrodinger_grid_size', default=getattr(args, 'schrodinger_grid_size', 128))
+                    args.schrodinger_time_steps = _config_get(bench_config, 'time_steps', 'schrodinger_time_steps', default=getattr(args, 'schrodinger_time_steps', 100))
+                    args.inner_loop_schrodinger = _config_get(bench_config, 'inner_loop', 'inner_loop_schrodinger', default=getattr(args, 'inner_loop_schrodinger', 10))
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -4006,11 +4033,11 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['atomic_contention_range'] = getattr(args, 'atomic_contention_range', 1024)
                     original_values['inner_loop_atomic'] = getattr(args, 'inner_loop_atomic', 50)
                     
-                    args.precision_atomic = bench_config.get('precision', 'float32')
-                    args.atomic_target_size = bench_config.get('target_size', getattr(args, 'atomic_target_size', 1_000_000))
-                    args.atomic_num_updates = bench_config.get('num_updates', getattr(args, 'atomic_num_updates', 10_000_000))
-                    args.atomic_contention_range = bench_config.get('contention_range', getattr(args, 'atomic_contention_range', 1024))
-                    args.inner_loop_atomic = bench_config.get('inner_loop', getattr(args, 'inner_loop_atomic', 50))
+                    args.precision_atomic = _config_get(bench_config, 'precision', 'precision_atomic', default='float32')
+                    args.atomic_target_size = _config_get(bench_config, 'target_size', 'atomic_target_size', default=getattr(args, 'atomic_target_size', 1_000_000))
+                    args.atomic_num_updates = _config_get(bench_config, 'num_updates', 'atomic_num_updates', default=getattr(args, 'atomic_num_updates', 10_000_000))
+                    args.atomic_contention_range = _config_get(bench_config, 'contention_range', 'atomic_contention_range', default=getattr(args, 'atomic_contention_range', 1024))
+                    args.inner_loop_atomic = _config_get(bench_config, 'inner_loop', 'inner_loop_atomic', default=getattr(args, 'inner_loop_atomic', 50))
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -4032,12 +4059,12 @@ def run_single_gpu(args, gpu_index: int, log=None):
                     original_values['sparse_density'] = getattr(args, 'sparse_density', 0.01)
                     original_values['inner_loop_sparse'] = getattr(args, 'inner_loop_sparse', 50)
                     
-                    args.precision_sparse = bench_config.get('precision', 'float32')
-                    args.sparse_m = bench_config.get('m', getattr(args, 'sparse_m', 8192))
-                    args.sparse_n = bench_config.get('n', getattr(args, 'sparse_n', 8192))
-                    args.sparse_k = bench_config.get('k', getattr(args, 'sparse_k', 8192))
-                    args.sparse_density = bench_config.get('density', getattr(args, 'sparse_density', 0.01))
-                    args.inner_loop_sparse = bench_config.get('inner_loop', getattr(args, 'inner_loop_sparse', 50))
+                    args.precision_sparse = _config_get(bench_config, 'precision', 'precision_sparse', default='float32')
+                    args.sparse_m = _config_get(bench_config, 'm', 'sparse_m', default=getattr(args, 'sparse_m', 8192))
+                    args.sparse_n = _config_get(bench_config, 'n', 'sparse_n', default=getattr(args, 'sparse_n', 8192))
+                    args.sparse_k = _config_get(bench_config, 'k', 'sparse_k', default=getattr(args, 'sparse_k', 8192))
+                    args.sparse_density = _config_get(bench_config, 'density', 'sparse_density', default=getattr(args, 'sparse_density', 0.01))
+                    args.inner_loop_sparse = _config_get(bench_config, 'inner_loop', 'inner_loop_sparse', default=getattr(args, 'inner_loop_sparse', 50))
                     
                     # Reset telemetry stats before benchmark for per-benchmark isolation
                     tel.reset_stats()
@@ -4600,25 +4627,39 @@ def main():
         log.info("="*80)
         
         if results:
-            # Group benchmarks by test name + precision
+            # Group benchmarks by position index + name + precision.
+            # Using bench_idx ensures that distinct config entries for the same
+            # benchmark+dtype (e.g., memory_traffic streaming vs random) are
+            # displayed as separate tables instead of being merged.
             benchmark_groups = {}
             for result in results:
                 gpu_idx = result['gpu_index']
                 serial = result.get('serial', 'N/A')
                 tel_stats = result.get('telemetry_stats', {})
                 
-                for bench in result.get('benchmarks', []):
+                for bench_idx, bench in enumerate(result.get('benchmarks', [])):
                     if not bench:
                         continue
-                    # Create unique key for each test variant
+                    # Create unique key using position index to avoid merging
+                    # distinct config entries with the same name+dtype
                     dtype = bench.get('params', {}).get('dtype', 'unknown')
-                    test_key = f"{bench['name']}_{dtype}"
+                    test_key = f"{bench_idx:03d}_{bench['name']}_{dtype}"
                     
                     if test_key not in benchmark_groups:
+                        # Build display name with extra context for benchmarks
+                        # that may appear multiple times with different params
+                        display_name = bench['name']
+                        params = bench.get('params', {})
+                        extra_parts = []
+                        if 'pattern' in params:
+                            extra_parts.append(params['pattern'])
+                        display_label = f"{display_name} ({dtype})" if not extra_parts else f"{display_name} ({dtype}, {', '.join(extra_parts)})"
+                        
                         benchmark_groups[test_key] = {
                             'name': bench['name'],
                             'dtype': dtype,
                             'unit': bench['unit'],
+                            'display_label': display_label,
                             'results': []
                         }
                     
@@ -4666,7 +4707,7 @@ def main():
                             r['notes'] = "Fastest"
                 
                 log.info("")
-                log.info(f"Test: {group['name']} ({group['dtype']})")
+                log.info(f"Test: {group['display_label']}")
                 log.info(f"{'GPU':<4} | {'Serial':<12} | {'Performance':<13} | {'Power(avg)':<10} | {'Temp(max)':<9} | {'Status':<6} | Notes")
                 log.info(f"{'-'*4}+{'-'*14}+{'-'*15}+{'-'*12}+{'-'*11}+{'-'*8}+{'-'*20}")
                 
@@ -4692,12 +4733,13 @@ def main():
                     })
                 
                 # Aggregate stats if multi-GPU
-                if len(results_list) > 1:
+                unique_gpus = len(set(r['gpu'] for r in results_list))
+                if unique_gpus > 1:
                     values = [r['performance'] for r in results_list]
                     aggregate = sum(values)
                     cv = (statistics.stdev(values) / statistics.mean(values) * 100.0) if len(values) > 1 else 0.0
                     log.info(f"")
-                    log.info(f"Aggregate: {aggregate:.1f} {group['unit']} across {len(results_list)} GPUs | Variation: CV={cv:.1f}%")
+                    log.info(f"Aggregate: {aggregate:.1f} {group['unit']} across {unique_gpus} GPUs | Variation: CV={cv:.1f}%")
             
             # Optional CSV export
             if hasattr(args, 'summary_csv') and args.summary_csv and csv_data:
