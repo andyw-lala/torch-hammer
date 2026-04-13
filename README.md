@@ -83,7 +83,7 @@ Torch Hammer has been validated on **50+ hardware configurations** spanning NVID
 | Vendor | Accelerator |
 |--------|-------------|
 | AMD | Instinct MI300A, Instinct MI250X |
-| NVIDIA | B200, GH200, H100, A100 |
+| NVIDIA | GB300, B200, GH200, H100, A100 |
 
 ### NVIDIA GPUs
 
