@@ -161,7 +161,7 @@ ROCM_VER=$(cat /opt/rocm/.info/version | cut -d'-' -f1 | cut -d'.' -f1,2)
 pip install torch --index-url https://download.pytorch.org/whl/rocm${ROCM_VER}
 
 # Add ROCm's amdsmi to Python path (auto-detects Python version)
-export PYTHONPATH=/opt/rocm/lib/$(ls /opt/rocm/lib | grep python):$PYTHONPATH
+export PYTHONPATH="/opt/rocm/share/amd_smi${PYTHONPATH:+:${PYTHONPATH}}"
 ```
 
 #### Apple Silicon (MPS) Setup
