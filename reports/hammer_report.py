@@ -2399,7 +2399,7 @@ def _get_css(theme_mode="auto"):
   .inner-expand td:first-child { text-align: left; }
   footer { margin-top: 3rem; font-size: 11px; color: var(--hint);
            border-top: 1px solid var(--border); padding-top: 1rem; }
-""".format(theme_block=theme_block)
+""".replace("{theme_block}", theme_block)
 
 
 # ---------------------------------------------------------------------------
